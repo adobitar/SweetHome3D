@@ -1,0 +1,8 @@
+{
+    "scripts": {
+      "docker:build": "docker build -t sweethome3d-build .",
+      "docker:run": "docker run -it sweethome3d-build",
+      "app:build": "node build.js"
+    }
+  }
+  
