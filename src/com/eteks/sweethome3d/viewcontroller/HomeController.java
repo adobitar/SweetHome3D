@@ -1,7 +1,7 @@
 /*
  * HomeController.java 15 mai 2006
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -90,6 +90,7 @@ import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Library;
 import com.eteks.sweethome3d.model.NotEnoughSpaceRecorderException;
+import com.eteks.sweethome3d.model.ObjectProperty;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.RecorderException;
 import com.eteks.sweethome3d.model.Room;
@@ -207,6 +208,7 @@ public class HomeController implements Controller {
       };
     this.undoManager = new UndoManager();
     this.undoSupport.addUndoableEditListener(this.undoManager);
+    this.notUndoableModifications = home.isModified();
 
     // Update recent homes list
     if (home.getName() != null) {
@@ -244,7 +246,9 @@ public class HomeController implements Controller {
     homeView.setEnabled(HomeView.ActionType.IMPORT_TEXTURES_LIBRARY, true);
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_CATALOG_ID, true);
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_NAME, true);
+    homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_DESCRIPTION, true);
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_CREATOR, true);
+    homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_LICENSE, true);
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_WIDTH, true);
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_HEIGHT, true);
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_DEPTH, true);
@@ -264,10 +268,12 @@ public class HomeController implements Controller {
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_VALUE_ADDED_TAX, true);
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_PRICE_VALUE_ADDED_TAX_INCLUDED, true);
     homeView.setEnabled(HomeView.ActionType.SORT_HOME_FURNITURE_BY_DESCENDING_ORDER,
-        this.home.getFurnitureSortedProperty() != null);
+        this.home.getFurnitureSortedPropertyName() != null);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_CATALOG_ID, true);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_NAME, true);
+    homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_DESCRIPTION, true);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_CREATOR, true);
+    homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_LICENSE, true);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_WIDTH, true);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_DEPTH, true);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_HEIGHT, true);
@@ -286,6 +292,11 @@ public class HomeController implements Controller {
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_VALUE_ADDED_TAX_PERCENTAGE, true);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_VALUE_ADDED_TAX, true);
     homeView.setEnabled(HomeView.ActionType.DISPLAY_HOME_FURNITURE_PRICE_VALUE_ADDED_TAX_INCLUDED, true);
+    for (ObjectProperty property : home.getFurnitureAdditionalProperties()) {
+      homeView.setActionEnabled(HomeView.SORT_HOME_FURNITURE_ADDITIONAL_PROPERTY_ACTION_PREFIX + property.getName(), true);
+      homeView.setActionEnabled(HomeView.DISPLAY_HOME_FURNITURE_ADDITIONAL_PROPERTY_ACTION_PREFIX + property.getName(), true);
+    }
+
     homeView.setEnabled(HomeView.ActionType.EXPORT_TO_CSV, true);
     homeView.setEnabled(HomeView.ActionType.SELECT, true);
     homeView.setEnabled(HomeView.ActionType.PAN, true);
@@ -298,17 +309,7 @@ public class HomeController implements Controller {
     enableBackgroungImageActions(homeView, selectedLevel != null
         ? selectedLevel.getBackgroundImage()
         : this.home.getBackgroundImage());
-    homeView.setEnabled(HomeView.ActionType.ADD_LEVEL, true);
-    homeView.setEnabled(HomeView.ActionType.ADD_LEVEL_AT_SAME_ELEVATION, true);
-    List<Level> levels = this.home.getLevels();
-    boolean homeContainsOneSelectedLevel = levels.size() > 1 && selectedLevel != null;
-    homeView.setEnabled(HomeView.ActionType.SELECT_ALL_AT_ALL_LEVELS, levels.size() > 1);
-    homeView.setEnabled(HomeView.ActionType.MAKE_LEVEL_VIEWABLE, homeContainsOneSelectedLevel);
-    homeView.setEnabled(HomeView.ActionType.MAKE_LEVEL_UNVIEWABLE, homeContainsOneSelectedLevel);
-    homeView.setEnabled(HomeView.ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE, homeContainsOneSelectedLevel);
-    homeView.setEnabled(HomeView.ActionType.MAKE_ALL_LEVELS_VIEWABLE, levels.size() > 1);
-    homeView.setEnabled(HomeView.ActionType.MODIFY_LEVEL, homeContainsOneSelectedLevel);
-    homeView.setEnabled(HomeView.ActionType.DELETE_LEVEL, homeContainsOneSelectedLevel);
+    enableLevelActions(homeView);
     homeView.setEnabled(HomeView.ActionType.ZOOM_IN, true);
     homeView.setEnabled(HomeView.ActionType.ZOOM_OUT, true);
     homeView.setEnabled(HomeView.ActionType.EXPORT_TO_SVG, true);
@@ -319,8 +320,6 @@ public class HomeController implements Controller {
     boolean emptyStoredCameras = home.getStoredCameras().isEmpty();
     homeView.setEnabled(HomeView.ActionType.DELETE_POINTS_OF_VIEW, !emptyStoredCameras);
     homeView.setEnabled(HomeView.ActionType.CREATE_PHOTOS_AT_POINTS_OF_VIEW, !emptyStoredCameras);
-    homeView.setEnabled(HomeView.ActionType.DISPLAY_ALL_LEVELS, levels.size() > 1);
-    homeView.setEnabled(HomeView.ActionType.DISPLAY_SELECTED_LEVEL, levels.size() > 1);
     homeView.setEnabled(HomeView.ActionType.DETACH_3D_VIEW, true);
     homeView.setEnabled(HomeView.ActionType.ATTACH_3D_VIEW, true);
     homeView.setEnabled(HomeView.ActionType.VIEW_FROM_OBSERVER, true);
@@ -332,6 +331,27 @@ public class HomeController implements Controller {
     homeView.setEnabled(HomeView.ActionType.ABOUT, true);
     enableCreationToolsActions(homeView);
     homeView.setTransferEnabled(true);
+  }
+
+  /**
+   * Enables actions handling levels.
+   */
+  private void enableLevelActions(HomeView homeView) {
+    boolean modificationState = getPlanController().isModificationState();
+    homeView.setEnabled(HomeView.ActionType.ADD_LEVEL, !modificationState);
+    homeView.setEnabled(HomeView.ActionType.ADD_LEVEL_AT_SAME_ELEVATION, !modificationState);
+    List<Level> levels = this.home.getLevels();
+    Level selectedLevel = this.home.getSelectedLevel();
+    boolean homeContainsOneSelectedLevel = levels.size() > 1 && selectedLevel != null;
+    homeView.setEnabled(HomeView.ActionType.SELECT_ALL_AT_ALL_LEVELS, !modificationState && levels.size() > 1);
+    homeView.setEnabled(HomeView.ActionType.MAKE_LEVEL_VIEWABLE, !modificationState && homeContainsOneSelectedLevel);
+    homeView.setEnabled(HomeView.ActionType.MAKE_LEVEL_UNVIEWABLE, !modificationState && homeContainsOneSelectedLevel);
+    homeView.setEnabled(HomeView.ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE, homeContainsOneSelectedLevel);
+    homeView.setEnabled(HomeView.ActionType.MAKE_ALL_LEVELS_VIEWABLE, levels.size() > 1);
+    homeView.setEnabled(HomeView.ActionType.MODIFY_LEVEL, homeContainsOneSelectedLevel);
+    homeView.setEnabled(HomeView.ActionType.DELETE_LEVEL, !modificationState && homeContainsOneSelectedLevel);
+    homeView.setEnabled(HomeView.ActionType.DISPLAY_ALL_LEVELS, levels.size() > 1);
+    homeView.setEnabled(HomeView.ActionType.DISPLAY_SELECTED_LEVEL, levels.size() > 1);
   }
 
   /**
@@ -422,7 +442,7 @@ public class HomeController implements Controller {
     // Create sub controller lazily only once it's needed
     if (this.homeController3D == null) {
       this.homeController3D = new HomeController3D(
-          this.home, this.preferences, this.viewFactory, this.contentManager, getUndoableEditSupport());
+          this.home, getPlanController(), this.preferences, this.viewFactory, this.contentManager, getUndoableEditSupport());
     }
     return this.homeController3D;
   }
@@ -743,9 +763,10 @@ public class HomeController implements Controller {
     boolean homeSelectionContainsOneWall = false;
     boolean homeSelectionContainsOneOrTwoWallsWithOneFreeEnd = false;
     boolean homeSelectionContainsRooms = false;
-    boolean homeSelectionContainsPolylines = false;
     boolean homeSelectionContainsOnlyOneRoom = false;
     boolean homeSelectionContainsOnlyOneRoomWithFourPointsOrMore = false;
+    boolean homeSelectionContainsPolylines = false;
+    boolean homeSelectionContainsDimensionLines = false;
     boolean homeSelectionContainsLabels = false;
     boolean homeSelectionContainsItemsWithText = false;
     boolean homeSelectionContainsCompass = false;
@@ -835,7 +856,7 @@ public class HomeController implements Controller {
           && selectedRooms.size() == 1;
       homeSelectionContainsOnlyOneRoomWithFourPointsOrMore = homeSelectionContainsOnlyOneRoom
           && selectedRooms.get(0).getPointCount() >= 4;
-      boolean homeSelectionContainsDimensionLines = !Home.getDimensionLinesSubList(selectedItems).isEmpty();
+      homeSelectionContainsDimensionLines = !Home.getDimensionLinesSubList(selectedItems).isEmpty();
       homeSelectionContainsPolylines = !Home.getPolylinesSubList(selectedItems).isEmpty();
       homeSelectionContainsLabels = !Home.getLabelsSubList(selectedItems).isEmpty();
       homeSelectionContainsCompass = selectedItems.contains(this.home.getCompass());
@@ -866,7 +887,9 @@ public class HomeController implements Controller {
       view.setEnabled(HomeView.ActionType.COPY, homeSelectionContainsFurniture);
       view.setEnabled(HomeView.ActionType.CUT, homeSelectionContainsDeletableFurniture);
       view.setEnabled(HomeView.ActionType.DELETE, homeSelectionContainsDeletableFurniture);
-    } else if (this.focusedView == getPlanController().getView()) {
+    } else if (this.focusedView == getPlanController().getView()
+               || this.focusedView == getHomeController3D().getView()
+                   && this.preferences.isEditingIn3DViewEnabled()) {
       view.setEnabled(HomeView.ActionType.COPY, homeSelectionContainsOneCopiableItemOrMore);
       view.setEnabled(HomeView.ActionType.CUT, homeSelectionContainsDeletableItems);
       view.setEnabled(HomeView.ActionType.DELETE, homeSelectionContainsDeletableItems);
@@ -917,6 +940,8 @@ public class HomeController implements Controller {
         homeSelectionContainsRooms);
     view.setEnabled(HomeView.ActionType.MODIFY_POLYLINE,
         homeSelectionContainsPolylines);
+    view.setEnabled(HomeView.ActionType.MODIFY_DIMENSION_LINE,
+        homeSelectionContainsDimensionLines);
     view.setEnabled(HomeView.ActionType.MODIFY_LABEL,
         homeSelectionContainsLabels);
     view.setEnabled(HomeView.ActionType.TOGGLE_BOLD_STYLE,
@@ -952,15 +977,18 @@ public class HomeController implements Controller {
     view.setEnabled(HomeView.ActionType.RESET_FURNITURE_ELEVATION,
         homeSelectionContainsOneMovablePieceOfFurnitureOrMore);
     view.setEnabled(HomeView.ActionType.GROUP_FURNITURE,
-        homeSelectionContainsTwoMovableGroupablePiecesOfFurnitureOrMore);
+        homeSelectionContainsTwoMovableGroupablePiecesOfFurnitureOrMore
+        && viewableLevel);
     view.setEnabled(HomeView.ActionType.UNGROUP_FURNITURE,
         homeSelectionContainsFurnitureGroup);
     boolean selectionMode = getPlanController() != null
         && getPlanController().getMode() == PlanController.Mode.SELECTION;
     view.setEnabled(HomeView.ActionType.ADD_ROOM_POINT, homeSelectionContainsOnlyOneRoom && selectionMode);
-    // Check minimum requirement for DELETE_ROOM_POINT action
+    // Check minimum requirement for DELETE_ROOM_POINT and RECOMPUTE_ROOM_POINTS actions
     // and let home view check the coordinates of the deleted point
     view.setEnabled(HomeView.ActionType.DELETE_ROOM_POINT,
+        homeSelectionContainsOnlyOneRoomWithFourPointsOrMore && selectionMode);
+    view.setEnabled(HomeView.ActionType.RECOMPUTE_ROOM_POINTS,
         homeSelectionContainsOnlyOneRoomWithFourPointsOrMore && selectionMode);
   }
 
@@ -971,7 +999,9 @@ public class HomeController implements Controller {
     HomeView view = getView();
     boolean pasteEnabled = false;
     if (this.focusedView == getFurnitureController().getView()
-        || this.focusedView == getPlanController().getView()) {
+        || this.focusedView == getPlanController().getView()
+        || this.focusedView == getHomeController3D().getView()
+            && this.preferences.isEditingIn3DViewEnabled()) {
       Level selectedLevel = this.home.getSelectedLevel();
       pasteEnabled = (selectedLevel == null || selectedLevel.isViewable())
           && !getPlanController().isModificationState() && !view.isClipboardEmpty();
@@ -1020,7 +1050,9 @@ public class HomeController implements Controller {
     HomeView view = getView();
     boolean pasteStyleEnabled = false;
     if ((this.focusedView == getFurnitureController().getView()
-          || this.focusedView == getPlanController().getView())
+          || this.focusedView == getPlanController().getView()
+          || this.focusedView == getHomeController3D().getView()
+              && this.preferences.isEditingIn3DViewEnabled())
         && !getPlanController().isModificationState()) {
       List<Selectable> clipboardItems = view.getClipboardItems();
       if (clipboardItems != null
@@ -1153,21 +1185,12 @@ public class HomeController implements Controller {
             }
             home.setSelectedItems(selectedItemsAtLevel);
           }
-          enableCreationToolsActions(getView());
-          enableBackgroungImageActions(getView(), selectedLevel == null
+          HomeView view = getView();
+          enableCreationToolsActions(view);
+          enableBackgroungImageActions(view, selectedLevel == null
               ? home.getBackgroundImage()
               : selectedLevel.getBackgroundImage());
-          List<Level> levels = home.getLevels();
-          boolean homeContainsOneSelectedLevel = levels.size() > 1 && selectedLevel != null;
-          getView().setEnabled(HomeView.ActionType.SELECT_ALL_AT_ALL_LEVELS, levels.size() > 1);
-          getView().setEnabled(HomeView.ActionType.MAKE_LEVEL_VIEWABLE, homeContainsOneSelectedLevel);
-          getView().setEnabled(HomeView.ActionType.MAKE_LEVEL_UNVIEWABLE, homeContainsOneSelectedLevel);
-          getView().setEnabled(HomeView.ActionType.MAKE_LEVEL_ONLY_VIEWABLE_ONE, homeContainsOneSelectedLevel);
-          getView().setEnabled(HomeView.ActionType.MAKE_ALL_LEVELS_VIEWABLE, levels.size() > 1);
-          getView().setEnabled(HomeView.ActionType.MODIFY_LEVEL, homeContainsOneSelectedLevel);
-          getView().setEnabled(HomeView.ActionType.DELETE_LEVEL, homeContainsOneSelectedLevel);
-          getView().setEnabled(HomeView.ActionType.DISPLAY_ALL_LEVELS, levels.size() > 1);
-          getView().setEnabled(HomeView.ActionType.DISPLAY_SELECTED_LEVEL, levels.size() > 1);
+          enableLevelActions(view);
         }
       };
     this.home.addPropertyChangeListener(Home.Property.SELECTED_LEVEL, selectedLevelListener);
@@ -1177,6 +1200,7 @@ public class HomeController implements Controller {
             enableBackgroungImageActions(getView(), (BackgroundImage)ev.getNewValue());
           } else if (Level.Property.VIEWABLE.name().equals(ev.getPropertyName())) {
             enableCreationToolsActions(getView());
+            enableActionsBoundToSelection();
             if (!(Boolean)ev.getNewValue()) {
               PlanController.Mode mode = getPlanController().getMode();
               if (mode != PlanController.Mode.SELECTION
@@ -1231,7 +1255,9 @@ public class HomeController implements Controller {
             enableActionsBoundToSelection();
             enableSelectAllAction();
             HomeView view = getView();
-            if (getPlanController().isModificationState()) {
+            enableLevelActions(view);
+            boolean modificationState = getPlanController().isModificationState();
+            if (modificationState) {
               view.setEnabled(HomeView.ActionType.PASTE, false);
               view.setEnabled(HomeView.ActionType.UNDO, false);
               view.setEnabled(HomeView.ActionType.REDO, false);
@@ -1240,6 +1266,8 @@ public class HomeController implements Controller {
               view.setEnabled(HomeView.ActionType.UNDO, undoManager.canUndo());
               view.setEnabled(HomeView.ActionType.REDO, undoManager.canRedo());
             }
+            view.setEnabled(HomeView.ActionType.LOCK_BASE_PLAN, !modificationState);
+            view.setEnabled(HomeView.ActionType.UNLOCK_BASE_PLAN, !modificationState);
           }
         });
     getPlanController().addPropertyChangeListener(PlanController.Property.MODE,
@@ -1370,7 +1398,9 @@ public class HomeController implements Controller {
           || getView().confirmReplaceFurnitureLibrary(furnitureLibraryName)) {
         this.preferences.addFurnitureLibrary(furnitureLibraryName);
         getView().showMessage(this.preferences.getLocalizedString(HomeController.class, "importedFurnitureLibraryMessage",
-            this.contentManager.getPresentationName(furnitureLibraryName, ContentManager.ContentType.FURNITURE_LIBRARY)));
+            this.contentManager != null
+                ? this.contentManager.getPresentationName(furnitureLibraryName, ContentManager.ContentType.FURNITURE_LIBRARY)
+                : furnitureLibraryName));
       }
     } catch (RecorderException ex) {
       String message = this.preferences.getLocalizedString(HomeController.class,
@@ -1411,7 +1441,9 @@ public class HomeController implements Controller {
           || getView().confirmReplaceTexturesLibrary(texturesLibraryName)) {
         this.preferences.addTexturesLibrary(texturesLibraryName);
         getView().showMessage(this.preferences.getLocalizedString(HomeController.class, "importedTexturesLibraryMessage",
-            this.contentManager.getPresentationName(texturesLibraryName, ContentManager.ContentType.TEXTURES_LIBRARY)));
+            this.contentManager != null
+                ? this.contentManager.getPresentationName(texturesLibraryName, ContentManager.ContentType.TEXTURES_LIBRARY)
+                : texturesLibraryName));
       }
     } catch (RecorderException ex) {
       String message = this.preferences.getLocalizedString(HomeController.class,
@@ -1518,6 +1550,82 @@ public class HomeController implements Controller {
   }
 
   /**
+   * Adds items to home, moves them of (dx, dy, dz) delta vector
+   * and posts a drop operation to undo support.
+   * @since 7.2
+   */
+  public void drop(List<? extends Selectable> items, View destinationView, Level level, float dx, float dy, Float dz) {
+    Level oldSelectedLevel = this.home.getSelectedLevel();
+    if (level != oldSelectedLevel
+        || dz != null
+            && items.size() == 1
+            && items.get(0) instanceof HomePieceOfFurniture
+            && this.application.getUserPreferences().isMagnetismEnabled()) {
+      UndoableEditSupport undoSupport = getUndoableEditSupport();
+      undoSupport.beginUpdate();
+
+      // Adjust elevation of dropped item
+      HomePieceOfFurniture piece = (HomePieceOfFurniture)items.get(0);
+      piece.setElevation((float)Math.max(0, dz));
+
+      if (level != oldSelectedLevel) {
+        List<Selectable> selection = this.home.getSelectedItems();
+        Selectable [] selectedItems = selection.toArray(new Selectable [selection.size()]);
+        boolean allLevelsSelection = this.home.isAllLevelsSelection();
+        this.home.setSelectedLevel(level);
+        undoSupport.postEdit(new LevelModificationUndoableEdit(this.home, this.preferences,
+            oldSelectedLevel, level, selectedItems, allLevelsSelection));
+      }
+      drop(items, destinationView, dx, dy);
+      undoSupport.postEdit(new LocalizedUndoableEdit(this.preferences, HomeController.class, "undoDropName"));
+
+      // End compound edit
+      undoSupport.endUpdate();
+    } else {
+      drop(items, destinationView, dx, dy);
+    }
+  }
+
+  /**
+   * Undoable edit for level modification.
+   */
+  private static class LevelModificationUndoableEdit extends LocalizedUndoableEdit {
+    private final Home          home;
+    private final Level         oldSelectedLevel;
+    private final Level         selectedLevel;
+    private final Selectable [] selectedItems;
+    private final boolean       allLevelsSelection;
+
+    private LevelModificationUndoableEdit(Home home, UserPreferences preferences,
+                                          Level oldSelectedLevel, Level selectedLevel,
+                                          Selectable [] selectedItems, boolean allLevelsSelection) {
+      super(preferences, HomeController.class, "undoDropName");
+      this.home = home;
+      this.oldSelectedLevel = oldSelectedLevel;
+      this.selectedLevel = selectedLevel;
+      this.selectedItems = selectedItems;
+      this.allLevelsSelection = allLevelsSelection;
+    }
+
+    @Override
+    public void undo() throws CannotUndoException {
+      super.undo();
+      if (this.allLevelsSelection) {
+        this.home.setAllLevelsSelection(this.allLevelsSelection);
+      } else {
+        this.home.setSelectedLevel(this.oldSelectedLevel);
+      }
+      this.home.setSelectedItems(Arrays.asList(this.selectedItems));
+    }
+
+    @Override
+    public void redo() throws CannotRedoException {
+      super.redo();
+      this.home.setSelectedLevel(this.selectedLevel);
+    }
+  }
+
+  /**
    * Adds items to home before the given item
    * and posts a drop operation to undo support.
    * @since 6.3
@@ -1556,7 +1664,8 @@ public class HomeController implements Controller {
       List<HomePieceOfFurniture> addedFurniture = Home.getFurnitureSubList(items);
       adjustFurnitureSizeAndElevation(addedFurniture, dx == 0 && dy == 0 && destinationView == null);
       getPlanController().moveItems(items, dx, dy);
-      if (destinationView == getPlanController().getView()) {
+      if (destinationView == getPlanController().getView()
+          || destinationView == getHomeController3D().getView()) {
         if (this.preferences.isMagnetismEnabled()
             && items.size() == 1
             && addedFurniture.size() == 1) {
@@ -1851,7 +1960,9 @@ public class HomeController implements Controller {
       }
     } else if (this.focusedView == getFurnitureController().getView()) {
       getFurnitureController().deleteSelection();
-    } else if (this.focusedView == getPlanController().getView()) {
+    } else if (this.focusedView == getPlanController().getView()
+               || this.focusedView == getHomeController3D().getView()
+                   && this.preferences.isEditingIn3DViewEnabled()) {
       getPlanController().deleteSelection();
     }
   }

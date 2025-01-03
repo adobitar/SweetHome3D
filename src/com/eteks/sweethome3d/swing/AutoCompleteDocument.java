@@ -1,7 +1,7 @@
 /*
  * AutoCompleteDocument.java 6 aout 2011
  *
- * Sweet Home 3D, Copyright (c) 2011 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,12 +41,13 @@ class AutoCompleteDocument extends PlainDocument {
   public AutoCompleteDocument(JTextComponent textComponent, List<String> autoCompletionStrings) {
     this.textComponent = textComponent;
     this.autoCompletionStrings = autoCompletionStrings;
-    this.autoCompletionEnabled = true;
     try {
       replace(0, 0, textComponent.getText(), null);
     } catch (BadLocationException ex) {
       throw new RuntimeException(ex);
     }
+    // Enable auto completion only once document text is set
+    this.autoCompletionEnabled = true;
   }
 
   @Override

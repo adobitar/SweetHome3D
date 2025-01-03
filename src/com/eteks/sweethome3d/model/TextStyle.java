@@ -1,7 +1,7 @@
 /*
  * TextStyle.java 27 nov. 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -41,7 +42,7 @@ public class TextStyle implements Serializable {
   private final boolean   italic;
   private       Alignment alignment;
 
-  private static final List<WeakReference<TextStyle>> textStylesCache = new ArrayList<WeakReference<TextStyle>>();
+  private static final List<WeakReference<TextStyle>> textStylesCache = Collections.synchronizedList(new ArrayList<WeakReference<TextStyle>>());
 
   public TextStyle(float fontSize) {
     this(fontSize, false, false);

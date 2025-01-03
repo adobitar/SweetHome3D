@@ -1,7 +1,7 @@
 /*
  * DefaultFurnitureCatalog.java 7 avr. 2006
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.security.AccessControlException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -37,19 +36,24 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.WeakHashMap;
 
+import com.eteks.sweethome3d.model.BoxBounds;
 import com.eteks.sweethome3d.model.CatalogDoorOrWindow;
 import com.eteks.sweethome3d.model.CatalogLight;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
+import com.eteks.sweethome3d.model.CatalogShelfUnit;
 import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.FurnitureCatalog;
 import com.eteks.sweethome3d.model.FurnitureCategory;
 import com.eteks.sweethome3d.model.HomeDoorOrWindow;
 import com.eteks.sweethome3d.model.Library;
 import com.eteks.sweethome3d.model.LightSource;
+import com.eteks.sweethome3d.model.ObjectProperty;
+import com.eteks.sweethome3d.model.PieceOfFurniture;
 import com.eteks.sweethome3d.model.Sash;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.tools.OperatingSystem;
@@ -86,6 +90,10 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
      * This information may contain some HTML code or a link to an external web site.
      */
     INFORMATION("information"),
+    /**
+     * The key for the license associated to a piece of furniture (optional).
+     */
+    LICENSE("license"),
     /**
      * The key for the tags or keywords associated to a piece of furniture (optional).
      * Tags are separated by commas with possible heading or trailing spaces.
@@ -266,6 +274,10 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
      */
     LIGHT_SOURCE_DIAMETER("lightSourceDiameter"),
     /**
+     * The key for the material name(s) of light source shapes in the 3D model of a light (optional).
+     */
+    LIGHT_SOURCE_MATERIAL_NAME("lightSourceMaterialName"),
+    /**
      * The key for the shape used to cut out upper levels when they intersect with a piece
      * like a staircase (optional). This shape should be defined with the syntax of
      * the d attribute of a <a href="http://www.w3.org/TR/SVG/paths.html">SVG path element</a>
@@ -284,6 +296,17 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
      */
     DROP_ON_TOP_ELEVATION("dropOnTopElevation"),
     /**
+     * The key for the shelf elevation(s) at which other objects can be placed on a piece of furniture
+     * from its bottom (optional).
+     */
+    SHELF_ELEVATIONS("shelfElevations"),
+    /**
+     * The key for the shelf box(es) in which other objects can be placed in a piece of furniture (optional).
+     * Each box is defined by the 6 values of the x, y, z coordinates of its left front bottom corner and
+     * its right back top corner.
+     */
+    SHELF_BOXES("shelfBoxes"),
+    /**
      * The key for the transformation matrix values applied to a piece of furniture (optional).
      * If the 3D model of a piece of furniture isn't correctly oriented,
      * the value of this key should give the 9 values of the transformation matrix
@@ -291,8 +314,12 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
      */
     MODEL_ROTATION("modelRotation"),
     /**
+     * The key for the model flags applied to a piece of furniture (optional).
+     * May be a combination of {@link PieceOfFurniture#SHOW_BACK_FACE} and {@link PieceOfFurniture#HIDE_EDGE_COLOR_MATERIAL} flags.
+     */
+    MODEL_FLAGS("modelFlags"),
+    /**
      * The key for the creator of a piece of furniture (optional).
-     * By default, creator is eTeks.
      */
     CREATOR("creator"),
     /**
@@ -339,10 +366,17 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
     }
 
     /**
+     * Returns the key prefix for the piece property.
+     */
+    public String getKeyPrefix() {
+      return this.keyPrefix;
+    }
+
+    /**
      * Returns the key for the piece property of the given index.
      */
     public String getKey(int pieceIndex) {
-      return keyPrefix + "#" + pieceIndex;
+      return this.keyPrefix + "#" + pieceIndex;
     }
 
     /**
@@ -366,7 +400,8 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
   private static final String CONTRIBUTED_FURNITURE_CATALOG_FAMILY = "ContributedFurnitureCatalog";
   private static final String ADDITIONAL_FURNITURE_CATALOG_FAMILY  = "AdditionalFurnitureCatalog";
 
-  private static Map<ResourceBundle, Map<Integer, List<String>>> furnitureAdditionalKeys = new WeakHashMap<ResourceBundle, Map<Integer,List<String>>>();
+  private static Map<ResourceBundle, Map<Integer, Map<String, ObjectProperty>>> furnitureAdditionalProperties =
+      new WeakHashMap<ResourceBundle, Map<Integer, Map<String, ObjectProperty>>>();
 
   private List<Library> libraries = new ArrayList<Library>();
 
@@ -440,29 +475,15 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
   public DefaultFurnitureCatalog(URL [] pluginFurnitureCatalogUrls,
                                  URL    furnitureResourcesUrlBase) {
     List<String> identifiedFurniture = new ArrayList<String>();
-    try {
-      SecurityManager securityManager = System.getSecurityManager();
-      if (securityManager != null) {
-        securityManager.checkCreateClassLoader();
+    for (URL pluginFurnitureCatalogUrl : pluginFurnitureCatalogUrls) {
+      try {
+        ResourceBundle resource = ResourceBundleTools.getBundle(pluginFurnitureCatalogUrl, PLUGIN_FURNITURE_CATALOG_FAMILY);
+        this.libraries.add(0, new DefaultLibrary(pluginFurnitureCatalogUrl.toExternalForm(),
+            UserPreferences.FURNITURE_LIBRARY_TYPE, resource));
+        readFurniture(resource, pluginFurnitureCatalogUrl, furnitureResourcesUrlBase, identifiedFurniture);
+      } catch (MissingResourceException ex) {
+        // Ignore malformed furniture catalog
       }
-
-      for (URL pluginFurnitureCatalogUrl : pluginFurnitureCatalogUrls) {
-        try {
-          ResourceBundle resource = ResourceBundle.getBundle(PLUGIN_FURNITURE_CATALOG_FAMILY, Locale.getDefault(),
-              new URLContentClassLoader(pluginFurnitureCatalogUrl));
-          this.libraries.add(0, new DefaultLibrary(pluginFurnitureCatalogUrl.toExternalForm(),
-              UserPreferences.FURNITURE_LIBRARY_TYPE, resource));
-          readFurniture(resource, pluginFurnitureCatalogUrl, furnitureResourcesUrlBase, identifiedFurniture);
-        } catch (MissingResourceException ex) {
-          // Ignore malformed furniture catalog
-        } catch (IllegalArgumentException ex) {
-          // Ignore malformed furniture catalog
-        }
-      }
-    } catch (AccessControlException ex) {
-      // Use only furniture accessible through classpath
-      ResourceBundle resource = ResourceBundle.getBundle(PLUGIN_FURNITURE_CATALOG_FAMILY, Locale.getDefault());
-      readFurniture(resource, null, furnitureResourcesUrlBase, identifiedFurniture);
     }
   }
 
@@ -500,11 +521,12 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
         pluginFurnitureCatalogUrl = pluginFurnitureCatalogFile.toURI().toURL();
       }
 
-      final ClassLoader urlLoader = new URLContentClassLoader(pluginFurnitureCatalogUrl);
-      ResourceBundle resourceBundle = ResourceBundle.getBundle(PLUGIN_FURNITURE_CATALOG_FAMILY, Locale.getDefault(), urlLoader);
-      this.libraries.add(0, new DefaultLibrary(pluginFurnitureCatalogFile.getCanonicalPath(),
-          UserPreferences.FURNITURE_LIBRARY_TYPE, resourceBundle));
-      readFurniture(resourceBundle, pluginFurnitureCatalogUrl, null, identifiedFurniture);
+      ResourceBundle resourceBundle = ResourceBundleTools.getBundle(pluginFurnitureCatalogUrl, PLUGIN_FURNITURE_CATALOG_FAMILY);
+      if (resourceBundle != null) {
+        this.libraries.add(0, new DefaultLibrary(pluginFurnitureCatalogFile.getCanonicalPath(),
+            UserPreferences.FURNITURE_LIBRARY_TYPE, resourceBundle));
+        readFurniture(resourceBundle, pluginFurnitureCatalogUrl, null, identifiedFurniture);
+      }
     } catch (MissingResourceException ex) {
       // Ignore malformed furniture catalog
     } catch (IllegalArgumentException ex) {
@@ -631,25 +653,78 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
   protected Map<String, String> getAdditionalProperties(ResourceBundle resource,
                                                         int index) {
     // Get all property keys of furniture different from default properties
-    Map<Integer, List<String>> catalogAdditionalKeys = furnitureAdditionalKeys.get(resource);
-    if (catalogAdditionalKeys == null) {
-      catalogAdditionalKeys = new HashMap<Integer, List<String>>();
-      furnitureAdditionalKeys.put(resource, catalogAdditionalKeys);
+    Map<String, ObjectProperty> catalogAdditionalProperties = getCatalogAdditionalProperties(resource).get(index);
+    if (catalogAdditionalProperties != null) {
+      Map<String, String> additionalProperties = new HashMap<String, String>(catalogAdditionalProperties.size());
+      for (Entry<String, ObjectProperty> entry : catalogAdditionalProperties.entrySet()) {
+        if (entry.getValue().getType() != ObjectProperty.Type.CONTENT) {
+          additionalProperties.put(entry.getValue().getName(), resource.getString(entry.getKey()));
+        }
+      }
+      return additionalProperties;
+    } else {
+      return Collections.emptyMap();
+    }
+  }
+
+  /**
+   * Returns the contents of the piece at the given <code>index</code>
+   * different from default properties.
+   */
+  protected Map<String, Content> getAdditionalContents(ResourceBundle resource,
+                                                      int index,
+                                                      URL furnitureCatalogUrl,
+                                                      URL furnitureResourcesUrlBase) {
+    // Get all property keys of furniture different from default properties
+    Map<String, ObjectProperty> catalogAdditionalProperties = getCatalogAdditionalProperties(resource).get(index);
+    if (catalogAdditionalProperties != null) {
+      Map<String, Content> additionalContents = new HashMap<String, Content>(catalogAdditionalProperties.size());
+      for (Entry<String, ObjectProperty> entry : catalogAdditionalProperties.entrySet()) {
+        if (entry.getValue().getType() == ObjectProperty.Type.CONTENT) {
+          additionalContents.put(entry.getValue().getName(),
+              getContent(resource, entry.getKey(), null, furnitureCatalogUrl, furnitureResourcesUrlBase, false, true));
+        }
+      }
+      return additionalContents;
+    } else {
+      return Collections.emptyMap();
+    }
+  }
+
+  /**
+   * Returns the additional properties defined in resource bundle.
+   */
+  private Map<Integer, Map<String, ObjectProperty>> getCatalogAdditionalProperties(ResourceBundle resource) {
+    Map<Integer, Map<String, ObjectProperty>> catalogAdditionalProperties = furnitureAdditionalProperties.get(resource);
+    if (catalogAdditionalProperties == null) {
+      catalogAdditionalProperties = new HashMap<Integer, Map<String, ObjectProperty>>();
+      furnitureAdditionalProperties.put(resource, catalogAdditionalProperties);
       for (Enumeration<String> keys = resource.getKeys(); keys.hasMoreElements(); ) {
         String key = keys.nextElement();
         int sharpIndex = key.lastIndexOf('#');
         if (sharpIndex != -1
             && sharpIndex + 1 < key.length()) {
           try {
-            int pieceIndex = Integer.valueOf(key.substring(sharpIndex + 1));
-            String propertyKey = key.substring(0, sharpIndex);
-            if (!isDefaultProperty(propertyKey)) {
-              List<String> otherKeys = catalogAdditionalKeys.get(pieceIndex);
-              if (otherKeys == null) {
-                otherKeys = new ArrayList<String>();
-                catalogAdditionalKeys.put(pieceIndex, otherKeys);
+            int colonIndex = key.indexOf(':', sharpIndex + 1);
+            int pieceIndex = Integer.parseInt(
+                key.substring(sharpIndex + 1, colonIndex != -1 ? colonIndex : key.length()).trim());
+            String propertyName = key.substring(0, sharpIndex);
+            if (!isDefaultProperty(propertyName)) {
+              Map<String, ObjectProperty> additionalKeys = catalogAdditionalProperties.get(pieceIndex);
+              if (additionalKeys == null) {
+                additionalKeys = new HashMap<String, ObjectProperty>();
+                catalogAdditionalProperties.put(pieceIndex, additionalKeys);
               }
-              otherKeys.add(propertyKey);
+              ObjectProperty.Type type = null;
+              if (colonIndex > 0) {
+                  try {
+                    type = ObjectProperty.Type.valueOf(key.substring(colonIndex + 1));
+                  } catch (IllegalArgumentException ex) {
+                    // Ignore type
+                  }
+                }
+
+              additionalKeys.put(key, new ObjectProperty(propertyName, type));
             }
           } catch (NumberFormatException ex) {
             // Not a key that matches a piece of furniture
@@ -657,25 +732,7 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
         }
       }
     }
-
-    List<String> additionalKeys = catalogAdditionalKeys.get(index);
-    if (additionalKeys != null) {
-      Map<String, String> additionalProperties;
-      int propertiesCount = additionalKeys.size();
-      if (propertiesCount == 1) {
-        String key = additionalKeys.get(0);
-        additionalProperties = Collections.singletonMap(key, resource.getString(key + "#" + index));
-      } else {
-        additionalProperties = new HashMap<String, String>(propertiesCount);
-        for (int i = 0; i < propertiesCount; i++) {
-          String key = additionalKeys.get(i);
-          additionalProperties.put(key, resource.getString(key + "#" + index));
-        }
-      }
-      return Collections.unmodifiableMap(additionalProperties);
-    } else {
-      return Collections.emptyMap();
-    }
+    return catalogAdditionalProperties;
   }
 
   /**
@@ -714,17 +771,18 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
       // Return null if key name# doesn't exist
       return null;
     }
-    String id = getOptionalString(resource, PropertyKey.ID.getKey(index), null);
-    String description = getOptionalString(resource, PropertyKey.DESCRIPTION.getKey(index), null);
-    String information = getOptionalString(resource, PropertyKey.INFORMATION.getKey(index), null);
-    String tagsString = getOptionalString(resource, PropertyKey.TAGS.getKey(index), null);
+    String id = ResourceBundleTools.getOptionalString(resource, PropertyKey.ID.getKey(index), null);
+    String description = ResourceBundleTools.getOptionalString(resource, PropertyKey.DESCRIPTION.getKey(index), null);
+    String information = ResourceBundleTools.getOptionalString(resource, PropertyKey.INFORMATION.getKey(index), null);
+    String license = ResourceBundleTools.getOptionalString(resource, PropertyKey.LICENSE.getKey(index), null);
+    String tagsString = ResourceBundleTools.getOptionalString(resource, PropertyKey.TAGS.getKey(index), null);
     String [] tags;
     if (tagsString != null) {
       tags = tagsString.split("\\s*,\\s*");
     } else {
       tags = new String [0];
     }
-    String creationDateString = getOptionalString(resource, PropertyKey.CREATION_DATE.getKey(index), null);
+    String creationDateString = ResourceBundleTools.getOptionalString(resource, PropertyKey.CREATION_DATE.getKey(index), null);
     Long creationDate = null;
     if (creationDateString != null) {
       try {
@@ -733,7 +791,7 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
         throw new IllegalArgumentException("Can't parse date "+ creationDateString, ex);
       }
     }
-    String gradeString = getOptionalString(resource, PropertyKey.GRADE.getKey(index), null);
+    String gradeString = ResourceBundleTools.getOptionalString(resource, PropertyKey.GRADE.getKey(index), null);
     Float grade = null;
     if (gradeString != null) {
       grade = Float.valueOf(gradeString);
@@ -742,20 +800,24 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
         furnitureCatalogUrl, furnitureResourcesUrlBase, false, false);
     Content planIcon = getContent(resource, PropertyKey.PLAN_ICON.getKey(index), PropertyKey.PLAN_ICON_DIGEST.getKey(index),
         furnitureCatalogUrl, furnitureResourcesUrlBase, false, true);
-    boolean multiPartModel = getOptionalBoolean(resource, PropertyKey.MULTI_PART_MODEL.getKey(index), false);
+    boolean multiPartModel = ResourceBundleTools.getOptionalBoolean(resource, PropertyKey.MULTI_PART_MODEL.getKey(index), false);
     Content model = getContent(resource, PropertyKey.MODEL.getKey(index), PropertyKey.MODEL_DIGEST.getKey(index),
         furnitureCatalogUrl, furnitureResourcesUrlBase, multiPartModel, false);
     float width = Float.parseFloat(resource.getString(PropertyKey.WIDTH.getKey(index)));
     float depth = Float.parseFloat(resource.getString(PropertyKey.DEPTH.getKey(index)));
     float height = Float.parseFloat(resource.getString(PropertyKey.HEIGHT.getKey(index)));
-    float elevation = getOptionalFloat(resource, PropertyKey.ELEVATION.getKey(index), 0);
-    float dropOnTopElevation = getOptionalFloat(resource, PropertyKey.DROP_ON_TOP_ELEVATION.getKey(index), height) / height;
+    float elevation = ResourceBundleTools.getOptionalFloat(resource, PropertyKey.ELEVATION.getKey(index), 0);
+    float dropOnTopElevation = ResourceBundleTools.getOptionalFloat(resource, PropertyKey.DROP_ON_TOP_ELEVATION.getKey(index), height) / height;
     boolean movable = Boolean.parseBoolean(resource.getString(PropertyKey.MOVABLE.getKey(index)));
     boolean doorOrWindow = Boolean.parseBoolean(resource.getString(PropertyKey.DOOR_OR_WINDOW.getKey(index)));
-    String staircaseCutOutShape = getOptionalString(resource, PropertyKey.STAIRCASE_CUT_OUT_SHAPE.getKey(index), null);
+    String staircaseCutOutShape = ResourceBundleTools.getOptionalString(resource, PropertyKey.STAIRCASE_CUT_OUT_SHAPE.getKey(index), null);
     float [][] modelRotation = getModelRotation(resource, PropertyKey.MODEL_ROTATION.getKey(index));
-    // By default creator is eTeks
-    String modelSizeString = getOptionalString(resource, PropertyKey.MODEL_SIZE.getKey(index), null);
+    String modelFlagsString = ResourceBundleTools.getOptionalString(resource, PropertyKey.MODEL_FLAGS.getKey(index), null);
+    int modelFlags = 0;
+    if (modelFlagsString != null) {
+      modelFlags = Integer.parseInt(modelFlagsString);
+    }
+    String modelSizeString = ResourceBundleTools.getOptionalString(resource, PropertyKey.MODEL_SIZE.getKey(index), null);
     Long modelSize = null;
     if (modelSizeString != null) {
       modelSize = Long.parseLong(modelSizeString);
@@ -763,11 +825,11 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
       // Request model size (this should be avoided when content is stored on a server)
       modelSize = ContentDigestManager.getInstance().getContentSize(model);
     }
-    String creator = getOptionalString(resource, PropertyKey.CREATOR.getKey(index), null);
-    boolean resizable = getOptionalBoolean(resource, PropertyKey.RESIZABLE.getKey(index), true);
-    boolean deformable = getOptionalBoolean(resource, PropertyKey.DEFORMABLE.getKey(index), true);
-    boolean texturable = getOptionalBoolean(resource, PropertyKey.TEXTURABLE.getKey(index), true);
-    boolean horizontallyRotatable = getOptionalBoolean(resource, PropertyKey.HORIZONTALLY_ROTATABLE.getKey(index), true);
+    String creator = ResourceBundleTools.getOptionalString(resource, PropertyKey.CREATOR.getKey(index), null);
+    boolean resizable = ResourceBundleTools.getOptionalBoolean(resource, PropertyKey.RESIZABLE.getKey(index), true);
+    boolean deformable = ResourceBundleTools.getOptionalBoolean(resource, PropertyKey.DEFORMABLE.getKey(index), true);
+    boolean texturable = ResourceBundleTools.getOptionalBoolean(resource, PropertyKey.TEXTURABLE.getKey(index), true);
+    boolean horizontallyRotatable = ResourceBundleTools.getOptionalBoolean(resource, PropertyKey.HORIZONTALLY_ROTATABLE.getKey(index), true);
     BigDecimal price = null;
     try {
       price = new BigDecimal(resource.getString(PropertyKey.PRICE.getKey(index)));
@@ -780,37 +842,54 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
     } catch (MissingResourceException ex) {
       // By default price is null
     }
-    String currency = getOptionalString(resource, PropertyKey.CURRENCY.getKey(index), null);
+    String currency = ResourceBundleTools.getOptionalString(resource, PropertyKey.CURRENCY.getKey(index), null);
 
-    Map<String, String> additionalProperties = getAdditionalProperties(resource, index);
+    Map<String, String>  additionalProperties = getAdditionalProperties(resource, index);
+    Map<String, Content> additionalContents   = getAdditionalContents(resource, index, furnitureCatalogUrl, furnitureResourcesUrlBase);
 
     if (doorOrWindow) {
-      String doorOrWindowCutOutShape = getOptionalString(resource, PropertyKey.DOOR_OR_WINDOW_CUT_OUT_SHAPE.getKey(index), null);
-      float wallThicknessPercentage = getOptionalFloat(
+      String doorOrWindowCutOutShape = ResourceBundleTools.getOptionalString(resource, PropertyKey.DOOR_OR_WINDOW_CUT_OUT_SHAPE.getKey(index), null);
+      float wallThicknessPercentage = ResourceBundleTools.getOptionalFloat(
           resource, PropertyKey.DOOR_OR_WINDOW_WALL_THICKNESS.getKey(index), depth) / depth;
-      float wallDistancePercentage = getOptionalFloat(
+      float wallDistancePercentage = ResourceBundleTools.getOptionalFloat(
           resource, PropertyKey.DOOR_OR_WINDOW_WALL_DISTANCE.getKey(index), 0) / depth;
-      boolean wallCutOutOnBothSides = getOptionalBoolean(
+      boolean wallCutOutOnBothSides = ResourceBundleTools.getOptionalBoolean(
           resource, PropertyKey.DOOR_OR_WINDOW_WALL_CUT_OUT_ON_BOTH_SIDES.getKey(index), true);
-      boolean widthDepthDeformable = getOptionalBoolean(
+      boolean widthDepthDeformable = ResourceBundleTools.getOptionalBoolean(
           resource, PropertyKey.DOOR_OR_WINDOW_WIDTH_DEPTH_DEFORMABLE.getKey(index), true);
       Sash [] sashes = getDoorOrWindowSashes(resource, index, width, depth);
-      return new CatalogDoorOrWindow(id, name, description, information, tags, creationDate, grade,
+      return new CatalogDoorOrWindow(id, name, description, information, license, tags, creationDate, grade,
           icon, planIcon, model, width, depth, height, elevation, dropOnTopElevation, movable,
           doorOrWindowCutOutShape, wallThicknessPercentage, wallDistancePercentage, wallCutOutOnBothSides, widthDepthDeformable, sashes,
-          modelRotation, false, modelSize, creator, resizable, deformable, texturable, price, valueAddedTaxPercentage, currency, additionalProperties);
+          modelRotation, modelFlags, modelSize, creator, resizable, deformable, texturable, price, valueAddedTaxPercentage, currency,
+          additionalProperties, additionalContents);
     } else {
       LightSource [] lightSources = getLightSources(resource, index, width, depth, height);
-      if (lightSources != null) {
-        return new CatalogLight(id, name, description, information, tags, creationDate, grade,
+      String lightSourceMaterialNamesString = ResourceBundleTools.getOptionalString(
+          resource, PropertyKey.LIGHT_SOURCE_MATERIAL_NAME.getKey(index), null);
+      String [] lightSourceMaterialNames = lightSourceMaterialNamesString != null ? lightSourceMaterialNamesString.split(" +") : null;
+      if (lightSources != null || lightSourceMaterialNames != null) {
+        return new CatalogLight(id, name, description, information, license, tags, creationDate, grade,
             icon, planIcon, model, width, depth, height, elevation, dropOnTopElevation, movable,
-            lightSources, staircaseCutOutShape, modelRotation, false, modelSize, creator,
-            resizable, deformable, texturable, horizontallyRotatable, price, valueAddedTaxPercentage, currency, additionalProperties);
+            lightSources, lightSourceMaterialNames, staircaseCutOutShape, modelRotation, modelFlags, modelSize, creator,
+            resizable, deformable, texturable, horizontallyRotatable, price, valueAddedTaxPercentage, currency,
+            additionalProperties, additionalContents);
       } else {
-        return new CatalogPieceOfFurniture(id, name, description, information, tags, creationDate, grade,
-            icon, planIcon, model, width, depth, height, elevation, dropOnTopElevation, movable,
-            staircaseCutOutShape, modelRotation, false, modelSize, creator,
-            resizable, deformable, texturable, horizontallyRotatable, price, valueAddedTaxPercentage, currency, additionalProperties);
+        float [] shelfElevations = getShelfElevations(resource, index, height);
+        BoxBounds [] shelfBoxes = getShelfBoxes(resource, index, width, depth, height);
+        if (shelfElevations != null || shelfBoxes != null) {
+          return new CatalogShelfUnit(id, name, description, information, license, tags, creationDate, grade,
+              icon, planIcon, model, width, depth, height, elevation, dropOnTopElevation, shelfElevations, shelfBoxes,
+              movable, staircaseCutOutShape, modelRotation, modelFlags, modelSize, creator,
+              resizable, deformable, texturable, horizontallyRotatable, price, valueAddedTaxPercentage, currency,
+              additionalProperties, additionalContents);
+        } else {
+          return new CatalogPieceOfFurniture(id, name, description, information, license, tags, creationDate, grade,
+              icon, planIcon, model, width, depth, height, elevation, dropOnTopElevation,
+              movable, staircaseCutOutShape, modelRotation, modelFlags, modelSize, creator,
+              resizable, deformable, texturable, horizontallyRotatable, price, valueAddedTaxPercentage, currency,
+              additionalProperties, additionalContents);
+        }
       }
     }
   }
@@ -845,7 +924,7 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
                              boolean multiPartModel,
                              boolean optional) {
     String contentFile = optional
-        ? getOptionalString(resource, contentKey, null)
+        ? ResourceBundleTools.getOptionalString(resource, contentKey, null)
         : resource.getString(contentKey);
     if (optional && contentFile == null) {
       return null;
@@ -883,12 +962,14 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
     // Except in special cases like URL content in applets where it might avoid to download content
     // to compute its digest, it's not recommended to store digests in sh3f and imported files.
     // Missing digests will be computed on demand, ensuring it will be updated in case content is damaged
-    String contentDigest = getOptionalString(resource, contentDigestKey, null);
-    if (contentDigest != null && contentDigest.length() > 0) {
-      try {
-        ContentDigestManager.getInstance().setContentDigest(content, Base64.decode(contentDigest));
-      } catch (IOException ex) {
-        // Ignore wrong digest
+    if (contentDigestKey != null) {
+      String contentDigest = ResourceBundleTools.getOptionalString(resource, contentDigestKey, null);
+      if (contentDigest != null && contentDigest.length() > 0) {
+        try {
+          ContentDigestManager.getInstance().setContentDigest(content, Base64.decode(contentDigest));
+        } catch (IOException ex) {
+          // Ignore wrong digest
+        }
       }
     }
     return content;
@@ -900,7 +981,7 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
   private float [][] getModelRotation(ResourceBundle resource, String key) {
     try {
       String modelRotationString = resource.getString(key);
-      String [] values = modelRotationString.split(" ", 9);
+      String [] values = modelRotationString.split(" +", 9);
 
       if (values.length == 9) {
         return new float [][] {{Float.parseFloat(values [0]),
@@ -927,28 +1008,28 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
    */
   private Sash [] getDoorOrWindowSashes(ResourceBundle resource, int index,
                                         float doorOrWindowWidth,
-                                        float doorOrWindowDepth) throws MissingResourceException {
+                                        float doorOrWindowDepth) {
     Sash [] sashes;
-    String sashXAxisString = getOptionalString(resource, PropertyKey.DOOR_OR_WINDOW_SASH_X_AXIS.getKey(index), null);
+    String sashXAxisString = ResourceBundleTools.getOptionalString(resource, PropertyKey.DOOR_OR_WINDOW_SASH_X_AXIS.getKey(index), null);
     if (sashXAxisString != null) {
-      String [] sashXAxisValues = sashXAxisString.split(" ");
-      // If doorOrWindowHingesX#i key exists the 3 other keys with the same count of numbers must exist too
-      String [] sashYAxisValues = resource.getString(PropertyKey.DOOR_OR_WINDOW_SASH_Y_AXIS.getKey(index)).split(" ");
+      String [] sashXAxisValues = sashXAxisString.split(" +");
+      // If doorOrWindowHingesX#i key exists the 4 other keys with the same count of numbers must exist too
+      String [] sashYAxisValues = resource.getString(PropertyKey.DOOR_OR_WINDOW_SASH_Y_AXIS.getKey(index)).split(" +");
       if (sashYAxisValues.length != sashXAxisValues.length) {
         throw new IllegalArgumentException(
             "Expected " + sashXAxisValues.length + " values in " + PropertyKey.DOOR_OR_WINDOW_SASH_Y_AXIS.getKey(index) + " key");
       }
-      String [] sashWidths = resource.getString(PropertyKey.DOOR_OR_WINDOW_SASH_WIDTH.getKey(index)).split(" ");
+      String [] sashWidths = resource.getString(PropertyKey.DOOR_OR_WINDOW_SASH_WIDTH.getKey(index)).split(" +");
       if (sashWidths.length != sashXAxisValues.length) {
         throw new IllegalArgumentException(
             "Expected " + sashXAxisValues.length + " values in " + PropertyKey.DOOR_OR_WINDOW_SASH_WIDTH.getKey(index) + " key");
       }
-      String [] sashStartAngles = resource.getString(PropertyKey.DOOR_OR_WINDOW_SASH_START_ANGLE.getKey(index)).split(" ");
+      String [] sashStartAngles = resource.getString(PropertyKey.DOOR_OR_WINDOW_SASH_START_ANGLE.getKey(index)).split(" +");
       if (sashStartAngles.length != sashXAxisValues.length) {
         throw new IllegalArgumentException(
             "Expected " + sashXAxisValues.length + " values in " + PropertyKey.DOOR_OR_WINDOW_SASH_START_ANGLE.getKey(index) + " key");
       }
-      String [] sashEndAngles = resource.getString(PropertyKey.DOOR_OR_WINDOW_SASH_END_ANGLE.getKey(index)).split(" ");
+      String [] sashEndAngles = resource.getString(PropertyKey.DOOR_OR_WINDOW_SASH_END_ANGLE.getKey(index)).split(" +");
       if (sashEndAngles.length != sashXAxisValues.length) {
         throw new IllegalArgumentException(
             "Expected " + sashXAxisValues.length + " values in " + PropertyKey.DOOR_OR_WINDOW_SASH_END_ANGLE.getKey(index) + " key");
@@ -976,31 +1057,31 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
   private LightSource [] getLightSources(ResourceBundle resource, int index,
                                          float lightWidth,
                                          float lightDepth,
-                                         float lightHeight) throws MissingResourceException {
+                                         float lightHeight) {
     LightSource [] lightSources = null;
-    String lightSourceXString = getOptionalString(resource, PropertyKey.LIGHT_SOURCE_X.getKey(index), null);
+    String lightSourceXString = ResourceBundleTools.getOptionalString(resource, PropertyKey.LIGHT_SOURCE_X.getKey(index), null);
     if (lightSourceXString != null) {
-      String [] lightSourceX = lightSourceXString.split(" ");
-      // If doorOrWindowHingesX#i key exists the 3 other keys with the same count of numbers must exist too
-      String [] lightSourceY = resource.getString(PropertyKey.LIGHT_SOURCE_Y.getKey(index)).split(" ");
+      String [] lightSourceX = lightSourceXString.split(" +");
+      // If lightSourceX#i key exists the 3 other keys with the same count of numbers must exist too
+      String [] lightSourceY = resource.getString(PropertyKey.LIGHT_SOURCE_Y.getKey(index)).split(" +");
       if (lightSourceY.length != lightSourceX.length) {
         throw new IllegalArgumentException(
             "Expected " + lightSourceX.length + " values in " + PropertyKey.LIGHT_SOURCE_Y.getKey(index) + " key");
       }
-      String [] lightSourceZ = resource.getString(PropertyKey.LIGHT_SOURCE_Z.getKey(index)).split(" ");
+      String [] lightSourceZ = resource.getString(PropertyKey.LIGHT_SOURCE_Z.getKey(index)).split(" +");
       if (lightSourceZ.length != lightSourceX.length) {
         throw new IllegalArgumentException(
             "Expected " + lightSourceX.length + " values in " + PropertyKey.LIGHT_SOURCE_Z.getKey(index) + " key");
       }
-      String [] lightSourceColors = resource.getString(PropertyKey.LIGHT_SOURCE_COLOR.getKey(index)).split(" ");
+      String [] lightSourceColors = resource.getString(PropertyKey.LIGHT_SOURCE_COLOR.getKey(index)).split(" +");
       if (lightSourceColors.length != lightSourceX.length) {
         throw new IllegalArgumentException(
             "Expected " + lightSourceX.length + " values in " + PropertyKey.LIGHT_SOURCE_COLOR.getKey(index) + " key");
       }
-      String lightSourceDiametersString = getOptionalString(resource, PropertyKey.LIGHT_SOURCE_DIAMETER.getKey(index), null);
+      String lightSourceDiametersString = ResourceBundleTools.getOptionalString(resource, PropertyKey.LIGHT_SOURCE_DIAMETER.getKey(index), null);
       String [] lightSourceDiameters;
       if (lightSourceDiametersString != null) {
-        lightSourceDiameters = lightSourceDiametersString.split(" ");
+        lightSourceDiameters = lightSourceDiametersString.split(" +");
         if (lightSourceDiameters.length != lightSourceX.length) {
           throw new IllegalArgumentException(
               "Expected " + lightSourceX.length + " values in " + PropertyKey.LIGHT_SOURCE_DIAMETER.getKey(index) + " key");
@@ -1028,45 +1109,47 @@ public class DefaultFurnitureCatalog extends FurnitureCatalog {
   }
 
   /**
-   * Returns the value of <code>propertyKey</code> in <code>resource</code>,
-   * or <code>defaultValue</code> if the property doesn't exist.
+   * Returns optional shelf elevations.
    */
-  private String getOptionalString(ResourceBundle resource,
-                                   String propertyKey,
-                                   String defaultValue) {
-    try {
-      return resource.getString(propertyKey);
-    } catch (MissingResourceException ex) {
-      return defaultValue;
+  private float [] getShelfElevations(ResourceBundle resource, int index, float height) {
+    float [] shelfElevations = null;
+    String shelfElevationsString = ResourceBundleTools.getOptionalString(resource, PropertyKey.SHELF_ELEVATIONS.getKey(index), null);
+    if (shelfElevationsString != null) {
+      String [] values = shelfElevationsString.split(" +");
+      shelfElevations = new float [values.length];
+      for (int i = 0; i < values.length; i++) {
+        shelfElevations [i] = Float.parseFloat(values [i]) / height;
+      }
     }
+    return shelfElevations;
   }
 
   /**
-   * Returns the value of <code>propertyKey</code> in <code>resource</code>,
-   * or <code>defaultValue</code> if the property doesn't exist.
+   * Returns optional shelf boxes.
    */
-  private float getOptionalFloat(ResourceBundle resource,
-                                 String propertyKey,
-                                 float defaultValue) {
-    try {
-      return Float.parseFloat(resource.getString(propertyKey));
-    } catch (MissingResourceException ex) {
-      return defaultValue;
+  private BoxBounds [] getShelfBoxes(ResourceBundle resource, int index,
+                                     float width, float depth, float height) {
+    BoxBounds [] shelfBoxes = null;
+    String shelfBoxesString = ResourceBundleTools.getOptionalString(resource, PropertyKey.SHELF_BOXES.getKey(index), null);
+    if (shelfBoxesString != null) {
+      String [] values = shelfBoxesString.split(" +");
+      if (values.length % 6 != 0) {
+        throw new IllegalArgumentException(
+            "Expected a multiple of 6 values in " + PropertyKey.SHELF_BOXES.getKey(index) + " key");
+      } else {
+        shelfBoxes = new BoxBounds [values.length / 6];
+        for (int i = 0; i < shelfBoxes.length; i++) {
+          shelfBoxes [i] = new BoxBounds(
+              Float.parseFloat(values [i * 6]) / width,
+              Float.parseFloat(values [i * 6 + 1]) / depth,
+              Float.parseFloat(values [i * 6 + 2]) / height,
+              Float.parseFloat(values [i * 6 + 3]) / width,
+              Float.parseFloat(values [i * 6 + 4]) / depth,
+              Float.parseFloat(values [i * 6 + 5]) / height);
+        }
+      }
     }
-  }
-
-  /**
-   * Returns the boolean value of <code>propertyKey</code> in <code>resource</code>,
-   * or <code>defaultValue</code> if the property doesn't exist.
-   */
-  private boolean getOptionalBoolean(ResourceBundle resource,
-                                     String propertyKey,
-                                     boolean defaultValue) {
-    try {
-      return Boolean.parseBoolean(resource.getString(propertyKey));
-    } catch (MissingResourceException ex) {
-      return defaultValue;
-    }
+    return shelfBoxes;
   }
 }
 

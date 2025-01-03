@@ -1,7 +1,7 @@
 /*
  * ImportedFurnitureWizardStepsPanel.java 4 juil. 07
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -96,6 +96,7 @@ import com.eteks.sweethome3d.j3d.OBJWriter;
 import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.FurnitureCategory;
+import com.eteks.sweethome3d.model.HomeMaterial;
 import com.eteks.sweethome3d.model.PieceOfFurniture;
 import com.eteks.sweethome3d.model.RecorderException;
 import com.eteks.sweethome3d.model.UserPreferences;
@@ -132,6 +133,7 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
   private RotationPreviewComponent          rotationPreviewComponent;
   private JLabel                            backFaceShownLabel;
   private JCheckBox                         backFaceShownCheckBox;
+  private JCheckBox                         edgeColorMaterialHiddenCheckBox;
   private JLabel                            attributesLabel;
   private JLabel                            nameLabel;
   private JTextField                        nameTextField;
@@ -178,9 +180,7 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
     updateController(piece, preferences);
     if (modelName != null) {
       updateController(modelName, preferences, controller.getContentManager(),
-          importHomePiece
-              ? null
-              : preferences.getFurnitureCatalog().getCategories().get(0), true);
+          getDefaultFurnitureCategory(preferences), true);
     }
 
     controller.addPropertyChangeListener(ImportedFurnitureWizardController.Property.STEP,
@@ -203,10 +203,16 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
     // Model panel components
     this.modelChoiceOrChangeLabel = new JLabel();
     this.modelChoiceOrChangeButton = new JButton();
-    final FurnitureCategory defaultModelCategory =
-        (importHomePiece || preferences.getFurnitureCatalog().getCategories().size() == 0)
-            ? null
-            : preferences.getFurnitureCatalog().getCategories().get(0);
+    // Use user category as default category and create it if it doesn't exist
+    FurnitureCategory userCategory = new FurnitureCategory(preferences.getLocalizedString(
+        ImportedFurnitureWizardStepsPanel.class, "userCategory"));
+    for (FurnitureCategory category : preferences.getFurnitureCatalog().getCategories()) {
+      if (category.equals(userCategory)) {
+        userCategory = category;
+        break;
+      }
+    }
+    final FurnitureCategory defaultModelCategory = getDefaultFurnitureCategory(preferences);
     this.modelChoiceOrChangeButton.addActionListener(new ActionListener() {
         public void actionPerformed(ActionEvent ev) {
           String modelName = showModelChoiceDialog(preferences, controller.getContentManager());
@@ -239,7 +245,7 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
                   ImportedFurnitureWizardStepsPanel.class, "findModelsMessage.title");
               findModelsMessageTextArea.setEditable(false);
               findModelsMessageTextArea.setOpaque(false);
-              JOptionPane.showMessageDialog(SwingUtilities.getRootPane(ImportedFurnitureWizardStepsPanel.this),
+              SwingTools.showMessageDialog(ImportedFurnitureWizardStepsPanel.this,
                   findModelsMessageTextArea, findModelsTitle,
                   JOptionPane.INFORMATION_MESSAGE);
             }
@@ -397,6 +403,20 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
             backFaceShownCheckBox.setSelected(controller.isBackFaceShown());
           }
         });
+    this.edgeColorMaterialHiddenCheckBox = new JCheckBox(SwingTools.getLocalizedLabelText(preferences,
+        ImportedFurnitureWizardStepsPanel.class, "edgeColorMaterialHiddenCheckBox.text"));
+    this.edgeColorMaterialHiddenCheckBox.setEnabled(false); // Will be enabled only if 3D model contains some materials starting with edge_color
+    this.edgeColorMaterialHiddenCheckBox.addItemListener(new ItemListener() {
+        public void itemStateChanged(ItemEvent ev) {
+          controller.setEdgeColorMaterialHidden(edgeColorMaterialHiddenCheckBox.isSelected());
+        }
+      });
+    controller.addPropertyChangeListener(ImportedFurnitureWizardController.Property.EDGE_COLOR_MATERIAL_HIDDEN,
+        new PropertyChangeListener() {
+          public void propertyChange(PropertyChangeEvent ev) {
+            edgeColorMaterialHiddenCheckBox.setSelected(controller.isEdgeColorMaterialHidden());
+          }
+        });
     this.rotationPreviewComponent = new RotationPreviewComponent(preferences, controller);
 
     // Attributes panel components
@@ -511,7 +531,9 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
       });
     this.categoryComboBox.addItemListener(new ItemListener() {
         public void itemStateChanged(ItemEvent ev) {
-          controller.setCategory((FurnitureCategory)ev.getItem());
+          controller.setCategory(!importHomePiece || addToCatalogCheckBox.isSelected()
+              ? (FurnitureCategory)ev.getItem()
+              : null);
         }
       });
     controller.addPropertyChangeListener(ImportedFurnitureWizardController.Property.CATEGORY,
@@ -524,9 +546,6 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
             }
           }
         });
-    if (this.categoryComboBox.getItemCount() > 0) {
-      this.categoryComboBox.setSelectedIndex(0);
-    }
 
     this.creatorLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
         ImportedFurnitureWizardStepsPanel.class, "creatorLabel.text"));
@@ -861,6 +880,8 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
       }
       this.backFaceShownCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
           ImportedFurnitureWizardStepsPanel.class, "backFaceShownCheckBox.mnemonic")).getKeyCode());
+      this.edgeColorMaterialHiddenCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
+          ImportedFurnitureWizardStepsPanel.class, "edgeColorMaterialHiddenCheckBox.mnemonic")).getKeyCode());
       this.nameLabel.setDisplayedMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
           ImportedFurnitureWizardStepsPanel.class, "nameLabel.mnemonic")).getKeyCode());
       this.nameLabel.setLabelFor(this.nameTextField);
@@ -975,10 +996,13 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
         GridBagConstraints.NONE, new Insets(0, 0, standardGap, 0), 0, 0));
     orientationPanel.add(this.backFaceShownLabel, new GridBagConstraints(
         0, 4, 2, 1, 0, 0, GridBagConstraints.LINE_START,
-        GridBagConstraints.NONE, new Insets(standardGap, 0, standardGap, 0), 0, 0));
+        GridBagConstraints.NONE, new Insets(standardGap / 2, 0, standardGap, 0), 0, 0));
     orientationPanel.add(this.backFaceShownCheckBox, new GridBagConstraints(
         0, 5, 2, 1, 0, 0, GridBagConstraints.CENTER,
         GridBagConstraints.NONE, new Insets(0, 0, standardGap, 0), 0, 0));
+    orientationPanel.add(this.edgeColorMaterialHiddenCheckBox, new GridBagConstraints(
+        0, 6, 2, 1, 0, 0, GridBagConstraints.CENTER,
+        GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
 
     JPanel attributesPanel = new JPanel(new GridBagLayout());
     attributesPanel.add(this.attributesLabel, new GridBagConstraints(
@@ -1089,6 +1113,22 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
   }
 
   /**
+   * Returns the default category used for imported furniture.
+   */
+  private FurnitureCategory getDefaultFurnitureCategory(UserPreferences preferences) {
+    // Use user category as default category and create it if it doesn't exist
+    FurnitureCategory userCategory = new FurnitureCategory(preferences.getLocalizedString(
+        ImportedFurnitureWizardStepsPanel.class, "userCategory"));
+    for (FurnitureCategory category : preferences.getFurnitureCatalog().getCategories()) {
+      if (category.equals(userCategory)) {
+        userCategory = category;
+        break;
+      }
+    }
+    return userCategory;
+  }
+
+  /**
    * Returns the transformation matching current model rotation.
    */
   private Transform3D getModelRotationTransform() {
@@ -1133,6 +1173,7 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
               controller.setModelSize(piece.getModelSize());
               controller.setModelRotation(piece.getModelRotation());
               controller.setBackFaceShown(piece.isBackFaceShown());
+              controller.setEdgeColorMaterialHidden((piece.getModelFlags() & PieceOfFurniture.HIDE_EDGE_COLOR_MATERIAL) != 0);
               controller.setName(piece.getName());
               controller.setCreator(piece.getCreator());
               controller.setCategory(piece.getCategory());
@@ -1145,7 +1186,17 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
               controller.setElevation(piece.getElevation());
               controller.setColor(piece.getColor());
               controller.setIconYaw(piece.getIconYaw());
+              controller.setIconPitch(piece.getIconPitch());
+              controller.setIconScale(piece.getIconScale());
               controller.setProportional(piece.isProportional());
+              boolean edgeColorMaterial = false;
+              for (HomeMaterial material : ModelManager.getInstance().getMaterials(modelRoot)) {
+                if (material.getName().startsWith(ModelManager.EDGE_COLOR_MATERIAL_PREFIX)) {
+                  edgeColorMaterial = true;
+                  break;
+                }
+              }
+              edgeColorMaterialHiddenCheckBox.setEnabled(edgeColorMaterial);
             }
 
             public void modelError(Exception ex) {
@@ -1190,11 +1241,12 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
             final Content copiedContent = copyToTemporaryOBJContent(model, modelName);
             // Load copied content using cache to make it accessible by preview components without waiting in EDT
             ModelManager.getInstance().loadModel(copiedContent, true, new ModelManager.ModelObserver() {
-                public void modelUpdated(BranchGroup modelRoot) {
+                public void modelUpdated(final BranchGroup modelRoot) {
                   EventQueue.invokeLater(new Runnable() {
                       public void run() {
                         setDefaultStateAndInitializeReadModel(copiedContent, modelName, defaultCategory,
-                            modelSize, preferences, contentManager);
+                            modelSize, ModelManager.getInstance().getMaterials(modelRoot),
+                            preferences, contentManager);
                       }
                     });
                 }
@@ -1251,11 +1303,14 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
                       + URLEncoder.encode(entryName, "UTF-8").replace("+", "%20").replace("%2F", "/"));
                   final Content entryContent = new TemporaryURLContent(entryUrl);
                   final AtomicReference<Vector3f> modelSize = new AtomicReference<Vector3f>();
+                  final AtomicReference<HomeMaterial[]> modelMaterials = new AtomicReference<HomeMaterial[]>();
                   // Load content using cache to make it accessible by preview components without waiting in EDT
                   ModelManager.getInstance().loadModel(entryContent, true, new ModelManager.ModelObserver() {
                       public void modelUpdated(BranchGroup modelRoot) {
                         try {
-                          modelSize.set(ModelManager.getInstance().getSize(modelRoot));
+                          ModelManager modelManager = ModelManager.getInstance();
+                          modelSize.set(modelManager.getSize(modelRoot));
+                          modelMaterials.set(modelManager.getMaterials(modelRoot));
                         } catch (IllegalArgumentException ex) {
                           // Thrown by getSize if model is empty
                         }
@@ -1280,7 +1335,7 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
                       EventQueue.invokeAndWait(new Runnable() {
                           public void run() {
                             setDefaultStateAndInitializeReadModel(entryContent, modelName, defaultCategory,
-                                modelSize.get(), preferences, contentManager);
+                                modelSize.get(), modelMaterials.get(), preferences, contentManager);
                           }
                       });
                       return;
@@ -1329,6 +1384,7 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
                                                      final String modelName,
                                                      final FurnitureCategory defaultCategory,
                                                      final Vector3f modelSize,
+                                                     final HomeMaterial[] modelMaterials,
                                                      final UserPreferences preferences,
                                                      final ContentManager contentManager) {
     setDefaultState();
@@ -1337,8 +1393,9 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
     controller.setModelSize(modelContent instanceof URLContent  ? ((URLContent)modelContent).getSize()  : null);
     setModelChangeTexts(preferences);
     modelChoiceErrorLabel.setVisible(false);
-    controller.setModelRotation(new float [][] {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}});
+    controller.setModelRotation(PieceOfFurniture.IDENTITY_ROTATION);
     controller.setBackFaceShown(false);
+    controller.setEdgeColorMaterialHidden(false);
     controller.setName(contentManager.getPresentationName(
         modelName, ContentManager.ContentType.MODEL));
     controller.setCreator(null);
@@ -1352,8 +1409,19 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
     controller.setStaircaseCutOutShape(null);
     controller.setColor(null);
     controller.setIconYaw((float)Math.PI / 8);
+    controller.setIconPitch(-(float)Math.PI / 16);
+    controller.setIconScale(1);
     controller.setProportional(true);
-  }
+    boolean edgeColorMaterial = false;
+    for (HomeMaterial material : modelMaterials) {
+      if (material.getName().startsWith(ModelManager.EDGE_COLOR_MATERIAL_PREFIX)) {
+        edgeColorMaterial = true;
+        break;
+      }
+    }
+    edgeColorMaterialHiddenCheckBox.setEnabled(edgeColorMaterial);
+    edgeColorMaterialHiddenCheckBox.setSelected(edgeColorMaterial);
+}
 
   /**
    * Restores default state and shows an error message about the chosen model.
@@ -1517,8 +1585,8 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
    * Preview component for model changes.
    */
   private static abstract class AbstractModelPreviewComponent extends ModelPreviewComponent {
-    public AbstractModelPreviewComponent(boolean pitchAndScaleChangeSupported) {
-      super(pitchAndScaleChangeSupported);
+    public AbstractModelPreviewComponent() {
+      super(true);
     }
 
     /**
@@ -1530,6 +1598,12 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
           new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
               setBackFaceShown(controller.isBackFaceShown());
+            }
+          });
+      controller.addPropertyChangeListener(ImportedFurnitureWizardController.Property.EDGE_COLOR_MATERIAL_HIDDEN,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              setEdgeColorMaterialHidden(controller.isEdgeColorMaterialHidden());
             }
           });
       PropertyChangeListener sizeChangeListener = new PropertyChangeListener() {
@@ -1575,6 +1649,34 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
       controller.addPropertyChangeListener(ImportedFurnitureWizardController.Property.ICON_YAW,
           iconYawChangeListener);
     }
+
+    /**
+     * Adds listener to <code>controller</code> to update the pitch of the piece icon
+     * displayed by this component.
+     */
+    protected void addIconPitchListener(final ImportedFurnitureWizardController controller) {
+      PropertyChangeListener iconPitchChangeListener = new PropertyChangeListener () {
+          public void propertyChange(PropertyChangeEvent ev) {
+            setViewPitch(controller.getIconPitch());
+          }
+        };
+      controller.addPropertyChangeListener(ImportedFurnitureWizardController.Property.ICON_PITCH,
+          iconPitchChangeListener);
+    }
+
+    /**
+     * Adds listener to <code>controller</code> to update the scale of the piece icon
+     * displayed by this component.
+     */
+    protected void addIconScaleListener(final ImportedFurnitureWizardController controller) {
+      PropertyChangeListener iconScaleChangeListener = new PropertyChangeListener () {
+          public void propertyChange(PropertyChangeEvent ev) {
+            setViewScale(controller.getIconScale());
+          }
+        };
+      controller.addPropertyChangeListener(ImportedFurnitureWizardController.Property.ICON_SCALE,
+          iconScaleChangeListener);
+    }
   }
 
 
@@ -1582,8 +1684,6 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
    * Preview component for model orientation.
    */
   private static class RotationPreviewComponent extends JPanel {
-    private static final int COMPONENT_PREFERRED_WIDTH = Math.round(200 * SwingTools.getResolutionScale());
-
     private ModelPreviewComponent perspectiveViewComponent3D;
     private JLabel                frontViewLabel;
     private ModelPreviewComponent frontViewComponent3D;
@@ -1650,12 +1750,6 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
           ImportedFurnitureWizardStepsPanel.class, "perspectiveViewLabel.text"));
     }
 
-    @Override
-    public Dimension getPreferredSize() {
-      return new Dimension(COMPONENT_PREFERRED_WIDTH,
-          COMPONENT_PREFERRED_WIDTH + 4 + this.frontViewLabel.getPreferredSize().height * 2);
-    }
-
     /**
      * Adds listeners to <code>controller</code> to update the rotation of the piece model
      * displayed by the 3D components.
@@ -1667,6 +1761,12 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
           new PropertyChangeListener() {
             public void propertyChange(PropertyChangeEvent ev) {
               viewComponent3D.setBackFaceShown(controller.isBackFaceShown());
+            }
+          });
+      controller.addPropertyChangeListener(ImportedFurnitureWizardController.Property.EDGE_COLOR_MATERIAL_HIDDEN,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              viewComponent3D.setEdgeColorMaterialHidden(controller.isEdgeColorMaterialHidden());
             }
           });
       if (mainComponent) {
@@ -1746,6 +1846,13 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
     private void layoutComponents() {
       setLayout(new GridBagLayout());
 
+      final int preferredWidth = Math.round(100 * SwingTools.getResolutionScale());
+      final Dimension preferredSize = new Dimension(preferredWidth + 2, preferredWidth + 2);
+      this.perspectiveViewComponent3D.setPreferredSize(preferredSize);
+      this.topViewComponent3D.setPreferredSize(preferredSize);
+      this.sideViewComponent3D.setPreferredSize(preferredSize);
+      this.frontViewComponent3D.setPreferredSize(preferredSize);
+
       // Place the 4 3D components differently depending on US or other country
       if (Locale.getDefault().equals(Locale.US)) {
         // Default projection view at top left
@@ -1754,28 +1861,28 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
             GridBagConstraints.NONE, new Insets(0, 0, 2, 5), 0, 0));
         add(this.perspectiveViewComponent3D, new GridBagConstraints(
             0, 1, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.BOTH, new Insets(0, 0, 5, 5), 0, 0));
+            GridBagConstraints.NONE, new Insets(0, 0, 5, 5), 0, 0));
         // Top view at top right
         add(this.topViewLabel, new GridBagConstraints(
             1, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.NONE, new Insets(0, 0, 2, 0), 0, 0));
         add(this.topViewComponent3D, new GridBagConstraints(
             1, 1, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.BOTH, new Insets(0, 0, 5, 0), 0, 0));
+            GridBagConstraints.NONE, new Insets(0, 0, 5, 0), 0, 0));
         // Left view at bottom left
         add(this.sideViewLabel, new GridBagConstraints(
             0, 2, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.NONE, new Insets(0, 0, 2, 5), 0, 0));
         add(this.sideViewComponent3D, new GridBagConstraints(
             0, 3, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.BOTH, new Insets(0, 0, 0, 5), 0, 0));
+            GridBagConstraints.NONE, new Insets(0, 0, 0, 5), 0, 0));
         // Front view at bottom right
         add(this.frontViewLabel, new GridBagConstraints(
             1, 2, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.NONE, new Insets(0, 0, 2, 0), 0, 0));
         add(this.frontViewComponent3D, new GridBagConstraints(
             1, 3, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+            GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
       } else {
         // Right view at top left
         add(this.sideViewLabel, new GridBagConstraints(
@@ -1783,28 +1890,28 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
             GridBagConstraints.NONE, new Insets(0, 0, 2, 5), 0, 0));
         add(this.sideViewComponent3D, new GridBagConstraints(
             0, 1, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.BOTH, new Insets(0, 0, 5, 5), 0, 0));
+            GridBagConstraints.NONE, new Insets(0, 0, 5, 5), 0, 0));
         // Front view at top right
         add(this.frontViewLabel, new GridBagConstraints(
             1, 0, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.NONE, new Insets(0, 0, 2, 0), 0, 0));
         add(this.frontViewComponent3D, new GridBagConstraints(
             1, 1, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.BOTH, new Insets(0, 0, 5, 0), 0, 0));
+            GridBagConstraints.NONE, new Insets(0, 0, 5, 0), 0, 0));
         // Default projection view at bottom left
         add(this.perspectiveViewLabel, new GridBagConstraints(
             0, 2, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.NONE, new Insets(0, 0, 2, 5), 0, 0));
         add(this.perspectiveViewComponent3D, new GridBagConstraints(
             0, 3, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.BOTH, new Insets(0, 0, 0, 5), 0, 0));
+            GridBagConstraints.NONE, new Insets(0, 0, 0, 5), 0, 0));
         // Top view at bottom right
         add(this.topViewLabel, new GridBagConstraints(
             1, 2, 1, 1, 0, 0, GridBagConstraints.CENTER,
             GridBagConstraints.NONE, new Insets(0, 0, 2, 0), 0, 0));
         add(this.topViewComponent3D, new GridBagConstraints(
             1, 3, 1, 1, 1, 1, GridBagConstraints.CENTER,
-            GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+            GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
       }
     }
   }
@@ -1815,7 +1922,6 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
    */
   private static class AttributesPreviewComponent extends AbstractModelPreviewComponent {
     public AttributesPreviewComponent(ImportedFurnitureWizardController controller) {
-      super(true);
       addSizeListeners(controller);
       addColorListener(controller);
     }
@@ -1831,11 +1937,12 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
     private ImportedFurnitureWizardController controller;
 
     public IconPreviewComponent(ImportedFurnitureWizardController controller) {
-      super(false);
       this.controller = controller;
       addSizeListeners(controller);
       addColorListener(controller);
       addIconYawListener(controller);
+      addIconPitchListener(controller);
+      addIconScaleListener(controller);
 
       Color backgroundColor = UIManager.getColor("window");
       if (backgroundColor == null) {
@@ -1856,6 +1963,22 @@ public class ImportedFurnitureWizardStepsPanel extends JPanel
     protected void setViewYaw(float viewYaw) {
       super.setViewYaw(viewYaw);
       this.controller.setIconYaw(viewYaw);
+    }
+
+    /**
+     * Sets the <code>pitch</code> angle used by view platform transform.
+     */
+    protected void setViewPitch(float viewPitch) {
+      super.setViewPitch(viewPitch);
+      this.controller.setIconPitch(viewPitch);
+    }
+
+    /**
+     * Sets the <code>scale</code> angle used by view platform transform.
+     */
+    protected void setViewScale(float viewScale) {
+      super.setViewScale(viewScale);
+      this.controller.setIconScale(viewScale);
     }
   }
 }

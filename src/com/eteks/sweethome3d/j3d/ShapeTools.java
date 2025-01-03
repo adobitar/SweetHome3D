@@ -1,7 +1,7 @@
 /*
  * ShapeTools.java 13 sept. 2018
  *
- * Sweet Home 3D, Copyright (c) 2018 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -162,7 +162,7 @@ public class ShapeTools {
   }
 
   /**
-   * Separated static class to be able to exclude Batik library from classpath.
+   * Separate static class to be able to exclude Batik library from classpath.
    */
   private static class SVGPathSupport {
     public static Shape parsePathShape(String svgPathShape) {

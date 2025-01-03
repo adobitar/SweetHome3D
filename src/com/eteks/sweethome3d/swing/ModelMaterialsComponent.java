@@ -1,7 +1,7 @@
 /*
  * ModelMaterialsComponent.java 26 oct. 2012
  *
- * Sweet Home 3D, Copyright (c) 2012 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.KeyboardFocusManager;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
@@ -39,6 +40,7 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.util.Arrays;
 import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.Locale;
@@ -74,6 +76,7 @@ import javax.swing.event.ListSelectionListener;
 import com.eteks.sweethome3d.j3d.ModelManager;
 import com.eteks.sweethome3d.model.HomeMaterial;
 import com.eteks.sweethome3d.model.HomeTexture;
+import com.eteks.sweethome3d.model.PieceOfFurniture;
 import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.ModelMaterialsController;
@@ -141,7 +144,8 @@ public class ModelMaterialsComponent extends JButton implements View {
                                   final ModelMaterialsController controller) {
       this.materialsLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
           ModelMaterialsComponent.class, "materialsLabel.text"));
-      this.materialsList = new JList(new MaterialsListModel(controller));
+      final MaterialsListModel materialsListModel = new MaterialsListModel(controller);
+      this.materialsList = new JList(materialsListModel);
       this.materialsList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
       this.materialsList.setCellRenderer(new MaterialListCellRenderer());
 
@@ -152,10 +156,10 @@ public class ModelMaterialsComponent extends JButton implements View {
       ModelManager.getInstance().loadModel(controller.getModel(), new ModelManager.ModelObserver() {
           public void modelUpdated(BranchGroup modelRoot) {
             final MaterialsListModel materialsListModel = (MaterialsListModel)materialsList.getModel();
-            previewComponent.setModel(controller.getModel(), controller.isBackFaceShown(), controller.getModelRotation(),
+            previewComponent.setModel(controller.getModel(), controller.getModelFlags(), controller.getModelRotation(),
                 controller.getModelWidth(), controller.getModelDepth(), controller.getModelHeight());
             previewComponent.setModelMaterials(materialsListModel.getMaterials());
-            previewComponent.setModelTranformations(controller.getModelTransformations());
+            previewComponent.setModelTransformations(controller.getModelTransformations());
             materialsListModel.addListDataListener(new ListDataListener() {
                 public void contentsChanged(ListDataEvent ev) {
                   previewComponent.setModelMaterials(materialsListModel.getMaterials());
@@ -173,6 +177,31 @@ public class ModelMaterialsComponent extends JButton implements View {
             // Should happen only if model is missing
             previewLabel.setVisible(false);
             previewComponent.setVisible(false);
+          }
+        });
+      this.previewComponent.addMouseListener(new MouseAdapter() {
+          @Override
+          public void mousePressed(MouseEvent ev) {
+            HomeMaterial pickedMaterial = previewComponent.getPickedMaterial();
+            if (pickedMaterial != null) {
+              for (int i = 0, n = materialsListModel.getSize(); i < n; i++) {
+                HomeMaterial material = materialsListModel.getDefaultMaterialAt(i);
+                if (material.getName() != null
+                    && material.getName().equals(pickedMaterial.getName())) {
+                  if ((ev.getModifiers() & Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()) != 0) {
+                    int [] selectedIndices = materialsList.getSelectedIndices();
+                    if (Arrays.binarySearch(selectedIndices, i) >= 0) {
+                      materialsList.removeSelectionInterval(i, i);
+                    } else {
+                      materialsList.addSelectionInterval(i, i);
+                    }
+                  } else {
+                    materialsList.setSelectedIndex(i);
+                  }
+                  materialsList.ensureIndexIsVisible(i);
+                }
+              }
+            }
           }
         });
 
@@ -371,7 +400,7 @@ public class ModelMaterialsComponent extends JButton implements View {
                 if (shininess != null) {
                   shininessSlider.setValue((int)(shininess * 128));
                 } else {
-                  shininessSlider.setValue((int)(defaultMaterial.getShininess() * 128));
+                  shininessSlider.setValue((int)((defaultMaterial.getShininess() != null) ? defaultMaterial.getShininess() * 128 : 0));
                 }
 
                 defaultColorAndTextureRadioButton.addChangeListener(defaultChoiceChangeListener);
@@ -668,7 +697,8 @@ public class ModelMaterialsComponent extends JButton implements View {
         ModelManager.getInstance().loadModel(controller.getModel(),
           new ModelManager.ModelObserver() {
             public void modelUpdated(BranchGroup modelRoot) {
-              defaultMaterials = ModelManager.getInstance().getMaterials(modelRoot, controller.getModelCreator());
+              defaultMaterials = ModelManager.getInstance().getMaterials(
+                  modelRoot, (controller.getModelFlags() & PieceOfFurniture.HIDE_EDGE_COLOR_MATERIAL) != 0, controller.getModelCreator());
               if (materials != null) {
                 // Keep only materials that are defined in default materials set
                 // (the list can be different if the model loader interprets differently a 3D model file
@@ -776,16 +806,16 @@ public class ModelMaterialsComponent extends JButton implements View {
 
       private void toggleBlinkingState() {
         MaterialsListModel listModel = (MaterialsListModel)materialsList.getModel();
-        HomeMaterial [] materials = listModel.getMaterials();
         if (listModel.getSize() > 1) {
+          HomeMaterial [] materials = listModel.getMaterials();
           if (getDelay() != 1000) {
             setDelay(1000);
+            if (materials == null) {
+              materials = new HomeMaterial [listModel.getSize()];
+            } else {
+              materials = materials.clone();
+            }
             for (int index : materialsList.getSelectedIndices()) {
-              if (materials == null) {
-                materials = new HomeMaterial [listModel.getSize()];
-              } else {
-                materials = materials.clone();
-              }
               HomeMaterial defaultMaterial = listModel.getDefaultMaterialAt(index);
               HomeMaterial selectedMaterial = materials [index] != null
                   ? materials [index]
@@ -795,6 +825,9 @@ public class ModelMaterialsComponent extends JButton implements View {
                 Integer selectedColor = selectedMaterial.getColor();
                 if (selectedColor == null) {
                   selectedColor = defaultMaterial.getColor();
+                  if (selectedColor == null) {
+                    selectedColor = 0xFF000000;
+                  }
                 }
                 int red   = (selectedColor >> 16) & 0xFF;
                 int green = (selectedColor >> 8) & 0xFF;
@@ -809,12 +842,11 @@ public class ModelMaterialsComponent extends JButton implements View {
               }
               materials [index] =
                   new HomeMaterial(selectedMaterial.getName(), blinkColor, null, selectedMaterial.getShininess());
-              previewComponent.setModelMaterials(materials);
             }
           } else {
             setDelay(100);
-            previewComponent.setModelMaterials(materials);
           }
+          previewComponent.setModelMaterials(materials);
         }
       }
 

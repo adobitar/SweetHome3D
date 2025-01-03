@@ -1,18 +1,18 @@
 /*
  * CatalogPieceOfFurniture.java 7 avr. 2006
- * 
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
- * 
+ *
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
+ *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
  * Foundation; either version 2 of the License, or (at your option) any later
  * version.
- * 
+ *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
  * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
  * details.
- * 
+ *
  * You should have received a copy of the GNU General Public License along with
  * this program; if not, write to the Free Software Foundation, Inc., 59 Temple
  * Place, Suite 330, Boston, MA 02111-1307 USA
@@ -34,13 +34,13 @@ import java.util.WeakHashMap;
  * @author Emmanuel Puybaret
  */
 public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurniture>, PieceOfFurniture, CatalogItem, Cloneable {
-  private static final float [][]   INDENTITY_ROTATION = new float [] [] {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
-  private static final byte [][]    EMPTY_CRITERIA     = new byte [0] [];
+  private static final byte [][]    EMPTY_CRITERIA     = new byte [0][];
 
   private final String              id;
   private final String              name;
   private final String              description;
   private final String              information;
+  private final String              license;
   private final String []           tags;
   private final Long                creationDate;
   private final Float               grade;
@@ -57,11 +57,13 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   private final boolean             doorOrWindow;
   private final String              staircaseCutOutShape;
   private final float [][]          modelRotation;
+  private final int                 modelFlags;
   private final Long                modelSize;
   private final String              creator;
-  private final boolean             backFaceShown;
   private final Integer             color;
   private final float               iconYaw;
+  private final float               iconPitch;
+  private final float               iconScale;
   private final boolean             modifiable;
   private final boolean             resizable;
   private final boolean             deformable;
@@ -70,18 +72,18 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   private final BigDecimal          price;
   private final BigDecimal          valueAddedTaxPercentage;
   private final String              currency;
-  private final Map<String, String> properties;
+  private final Map<String, Object> properties;
 
-  private FurnitureCategory         category;
-  private byte []                   filterCollationKey;
+  private FurnitureCategory          category;
+  private byte []                    filterCollationKey;
 
   private static final Collator               COMPARATOR;
   private static final Map<String, byte [][]> recentFilters;
-  
+
   static {
     COMPARATOR = Collator.getInstance();
-    COMPARATOR.setStrength(Collator.PRIMARY); 
-    recentFilters = new WeakHashMap<String, byte[][]>();
+    COMPARATOR.setStrength(Collator.PRIMARY);
+    recentFilters = Collections.synchronizedMap(new WeakHashMap<String, byte[][]>());
   }
 
   /**
@@ -94,22 +96,22 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param height  the height in centimeters of the new piece
    * @param movable if <code>true</code>, the new piece is movable
    * @param doorOrWindow if <code>true</code>, the new piece is a door or a window
-   * @deprecated As of version 1.7, use constructor without <code>doorOrWindow</code> 
-   *             parameter since a catalog door and window is supposed to be an instance 
-   *             of {@link CatalogDoorOrWindow} 
+   * @deprecated As of version 1.7, use constructor without <code>doorOrWindow</code>
+   *             parameter since a catalog door and window is supposed to be an instance
+   *             of {@link CatalogDoorOrWindow}
    */
-  public CatalogPieceOfFurniture(String name, Content icon, Content model, 
-                                 float width, float depth, float height, 
+  public CatalogPieceOfFurniture(String name, Content icon, Content model,
+                                 float width, float depth, float height,
                                  boolean movable, boolean doorOrWindow) {
-    this(null, name, null, icon, model, width, depth, height, 0, movable, doorOrWindow, 
-        INDENTITY_ROTATION, null, true, null, null);
+    this(null, name, null, icon, model, width, depth, height, 0, movable, doorOrWindow,
+        IDENTITY_ROTATION, null, true, null, null);
   }
 
   /**
    * Creates an unmodifiable catalog piece of furniture of the default catalog.
    * @param id    the id of the new piece or <code>null</code>
    * @param name  the name of the new piece
-   * @param description the description of the new piece 
+   * @param description the description of the new piece
    * @param icon content of the icon of the new piece
    * @param model content of the 3D model of the new piece
    * @param width  the width in centimeters of the new piece
@@ -121,27 +123,27 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
    * @param creator the creator of the model
    * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
    *             price of the new piece or <code>null</code>
-   * @deprecated As of version 1.7, use constructor without <code>doorOrWindow</code> 
-   *             parameter since a catalog door and window is supposed to be an instance 
-   *             of {@link CatalogDoorOrWindow} 
+   * @deprecated As of version 1.7, use constructor without <code>doorOrWindow</code>
+   *             parameter since a catalog door and window is supposed to be an instance
+   *             of {@link CatalogDoorOrWindow}
    */
-  public CatalogPieceOfFurniture(String id, String name, String description, Content icon, Content model, 
-                                 float width, float depth, float height, float elevation, 
-                                 boolean movable, boolean doorOrWindow, 
+  public CatalogPieceOfFurniture(String id, String name, String description, Content icon, Content model,
+                                 float width, float depth, float height, float elevation,
+                                 boolean movable, boolean doorOrWindow,
                                  float [][] modelRotation, String creator,
                                  boolean resizable, BigDecimal price, BigDecimal valueAddedTaxPercentage) {
-    this(id, name, description, icon, model, width, depth, height, elevation, movable, 
+    this(id, name, description, icon, model, width, depth, height, elevation, movable,
         modelRotation, creator, resizable, price, valueAddedTaxPercentage);
   }
-         
+
   /**
    * Creates an unmodifiable catalog piece of furniture of the default catalog.
    * @param id    the id of the new piece or <code>null</code>
    * @param name  the name of the new piece
-   * @param description the description of the new piece 
+   * @param description the description of the new piece
    * @param icon content of the icon of the new piece
    * @param model content of the 3D model of the new piece
    * @param width  the width in centimeters of the new piece
@@ -152,24 +154,24 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
    * @param creator the creator of the model
    * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
    * @since 1.7
    */
-  public CatalogPieceOfFurniture(String id, String name, String description, Content icon, Content model, 
-                                 float width, float depth, float height, float elevation, 
+  public CatalogPieceOfFurniture(String id, String name, String description, Content icon, Content model,
+                                 float width, float depth, float height, float elevation,
                                  boolean movable, float [][] modelRotation, String creator,
                                  boolean resizable, BigDecimal price, BigDecimal valueAddedTaxPercentage) {
-    this(id, name, description, icon, null, model, width, depth, height, elevation, movable, 
+    this(id, name, description, icon, null, model, width, depth, height, elevation, movable,
         modelRotation, creator, resizable, price, valueAddedTaxPercentage);
   }
-         
+
   /**
    * Creates an unmodifiable catalog piece of furniture of the default catalog.
    * @param id    the id of the new piece or <code>null</code>
    * @param name  the name of the new piece
-   * @param description the description of the new piece 
+   * @param description the description of the new piece
    * @param icon content of the icon of the new piece
    * @param planIcon content of the icon of the new piece displayed in plan
    * @param model content of the 3D model of the new piece
@@ -181,25 +183,25 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
    * @param creator the creator of the model
    * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
    * @since 2.2
    */
-  public CatalogPieceOfFurniture(String id, String name, String description, 
-                                 Content icon, Content planIcon, Content model, 
-                                 float width, float depth, float height, float elevation, 
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height, float elevation,
                                  boolean movable, float [][] modelRotation, String creator,
                                  boolean resizable, BigDecimal price, BigDecimal valueAddedTaxPercentage) {
-    this(id, name, description, icon, planIcon, model, width, depth, height, elevation, movable, 
+    this(id, name, description, icon, planIcon, model, width, depth, height, elevation, movable,
         modelRotation, creator, resizable, true, true, price, valueAddedTaxPercentage);
   }
-  
+
   /**
    * Creates an unmodifiable catalog piece of furniture of the default catalog.
    * @param id    the id of the new piece or <code>null</code>
    * @param name  the name of the new piece
-   * @param description the description of the new piece 
+   * @param description the description of the new piece
    * @param icon content of the icon of the new piece
    * @param planIcon content of the icon of the new piece displayed in plan
    * @param model content of the 3D model of the new piece
@@ -211,30 +213,30 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
    * @param creator the creator of the model
    * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param deformable if <code>true</code>, the width, depth and height of the new piece may 
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
    *            change independently from each other
    * @param texturable if <code>false</code> this piece should always keep the same color or texture.
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
    * @since 3.0
    */
-  public CatalogPieceOfFurniture(String id, String name, String description, 
-                                 Content icon, Content planIcon, Content model, 
-                                 float width, float depth, float height, float elevation, 
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height, float elevation,
                                  boolean movable, float [][] modelRotation, String creator,
-                                 boolean resizable, boolean deformable, boolean texturable, 
+                                 boolean resizable, boolean deformable, boolean texturable,
                                  BigDecimal price, BigDecimal valueAddedTaxPercentage) {
-    this(id, name, description, icon, planIcon, model, width, depth, height, elevation, 
+    this(id, name, description, icon, planIcon, model, width, depth, height, elevation,
         movable, null, modelRotation, creator, resizable, deformable, texturable,
         price, valueAddedTaxPercentage, null);
   }
-  
+
   /**
    * Creates an unmodifiable catalog piece of furniture of the default catalog.
    * @param id    the id of the new piece or <code>null</code>
    * @param name  the name of the new piece
-   * @param description the description of the new piece 
+   * @param description the description of the new piece
    * @param icon content of the icon of the new piece
    * @param planIcon content of the icon of the new piece displayed in plan
    * @param model content of the 3D model of the new piece
@@ -243,230 +245,40 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param height  the height in centimeters of the new piece
    * @param elevation  the elevation in centimeters of the new piece
    * @param movable if <code>true</code>, the new piece is movable
-   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect 
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
    *            with the piece like a staircase
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
    * @param creator the creator of the model
    * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param deformable if <code>true</code>, the width, depth and height of the new piece may 
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
    *            change independently from each other
    * @param texturable if <code>false</code> this piece should always keep the same color or texture.
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
-   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code> 
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
+   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
    * @since 3.4
    */
-  public CatalogPieceOfFurniture(String id, String name, String description, 
-                                 Content icon, Content planIcon, Content model, 
-                                 float width, float depth, float height, 
-                                 float elevation, boolean movable, String staircaseCutOutShape, 
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height,
+                                 float elevation, boolean movable, String staircaseCutOutShape,
                                  float [][] modelRotation, String creator,
-                                 boolean resizable, boolean deformable, boolean texturable, 
+                                 boolean resizable, boolean deformable, boolean texturable,
                                  BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
-    this(id, name, description, null, new String [0], null, null, icon, planIcon, model, width, depth, 
+    this(id, name, description, null, new String [0], null, null, icon, planIcon, model, width, depth,
         height, elevation, movable, staircaseCutOutShape, modelRotation, creator, resizable, deformable,
         texturable, price, valueAddedTaxPercentage, currency);
-  }
-  
-  /**
-   * Creates an unmodifiable catalog piece of furniture of the default catalog.
-   * @param id    the id of the new piece or <code>null</code>
-   * @param name  the name of the new piece
-   * @param description the description of the new piece 
-   * @param information additional information associated to the new piece
-   * @param tags tags associated to the new piece
-   * @param creationDate creation date of the new piece in milliseconds since the epoch 
-   * @param grade grade of the piece of furniture or <code>null</code>
-   * @param icon content of the icon of the new piece
-   * @param planIcon content of the icon of the new piece displayed in plan
-   * @param model content of the 3D model of the new piece
-   * @param width  the width in centimeters of the new piece
-   * @param depth  the depth in centimeters of the new piece
-   * @param height  the height in centimeters of the new piece
-   * @param elevation  the elevation in centimeters of the new piece
-   * @param movable if <code>true</code>, the new piece is movable
-   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect 
-   *            with the piece like a staircase
-   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
-   * @param creator the creator of the model
-   * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param deformable if <code>true</code>, the width, depth and height of the new piece may 
-   *            change independently from each other
-   * @param texturable if <code>false</code> this piece should always keep the same color or texture.
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
-   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
-   * @since 3.6
-   */
-  public CatalogPieceOfFurniture(String id, String name, String description, 
-                                 String information, String [] tags, Long creationDate, Float grade, 
-                                 Content icon, Content planIcon, Content model, 
-                                 float width, float depth, float height, 
-                                 float elevation, boolean movable, String staircaseCutOutShape, 
-                                 float [][] modelRotation, String creator, 
-                                 boolean resizable, boolean deformable, boolean texturable, 
-                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
-    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth, 
-        height, elevation, 1f, movable, false, staircaseCutOutShape, null, modelRotation, false, null, creator, resizable, deformable,
-        texturable, true, price, valueAddedTaxPercentage, currency, null, (float)Math.PI / 8, true, false);
-  }
-  
-  /**
-   * Creates an unmodifiable catalog piece of furniture of the default catalog.
-   * @param id    the id of the new piece or <code>null</code>
-   * @param name  the name of the new piece
-   * @param description the description of the new piece 
-   * @param information additional information associated to the new piece
-   * @param tags tags associated to the new piece
-   * @param creationDate creation date of the new piece in milliseconds since the epoch 
-   * @param grade grade of the piece of furniture or <code>null</code>
-   * @param icon content of the icon of the new piece
-   * @param planIcon content of the icon of the new piece displayed in plan
-   * @param model content of the 3D model of the new piece
-   * @param width  the width in centimeters of the new piece
-   * @param depth  the depth in centimeters of the new piece
-   * @param height  the height in centimeters of the new piece
-   * @param elevation  the elevation in centimeters of the new piece
-   * @param dropOnTopElevation  a percentage of the height at which should be placed 
-   *            an object dropped on the new piece
-   * @param movable if <code>true</code>, the new piece is movable
-   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect 
-   *            with the piece like a staircase
-   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
-   * @param creator the creator of the model
-   * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param deformable if <code>true</code>, the width, depth and height of the new piece may 
-   *            change independently from each other
-   * @param texturable if <code>false</code> this piece should always keep the same color or texture.
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
-   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
-   * @since 4.4 
-   */
-  public CatalogPieceOfFurniture(String id, String name, String description, 
-                                 String information, String [] tags, Long creationDate, Float grade, 
-                                 Content icon, Content planIcon, Content model, 
-                                 float width, float depth, float height, 
-                                 float elevation, float dropOnTopElevation, 
-                                 boolean movable, String staircaseCutOutShape, 
-                                 float [][] modelRotation, String creator, 
-                                 boolean resizable, boolean deformable, boolean texturable, 
-                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
-    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth, height, 
-        elevation, dropOnTopElevation, movable, staircaseCutOutShape, modelRotation, false, 
-        creator, resizable, deformable, texturable, price, valueAddedTaxPercentage, currency);
-  }
-  
-  /**
-   * Creates an unmodifiable catalog piece of furniture of the default catalog.
-   * @param id    the id of the new piece or <code>null</code>
-   * @param name  the name of the new piece
-   * @param description the description of the new piece 
-   * @param information additional information associated to the new piece
-   * @param tags tags associated to the new piece
-   * @param creationDate creation date of the new piece in milliseconds since the epoch 
-   * @param grade grade of the piece of furniture or <code>null</code>
-   * @param icon content of the icon of the new piece
-   * @param planIcon content of the icon of the new piece displayed in plan
-   * @param model content of the 3D model of the new piece
-   * @param width  the width in centimeters of the new piece
-   * @param depth  the depth in centimeters of the new piece
-   * @param height  the height in centimeters of the new piece
-   * @param elevation  the elevation in centimeters of the new piece
-   * @param dropOnTopElevation  a percentage of the height at which should be placed 
-   *            an object dropped on the new piece
-   * @param movable if <code>true</code>, the new piece is movable
-   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect 
-   *            with the piece like a staircase
-   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
-   * @param backFaceShown <code>true</code> if back face should be shown instead of front faces
-   * @param creator the creator of the model
-   * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param deformable if <code>true</code>, the width, depth and height of the new piece may 
-   *            change independently from each other
-   * @param texturable if <code>false</code> this piece should always keep the same color or texture.
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
-   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
-   * @since 5.3 
-   */
-  public CatalogPieceOfFurniture(String id, String name, String description, 
-                                 String information, String [] tags, Long creationDate, Float grade, 
-                                 Content icon, Content planIcon, Content model, 
-                                 float width, float depth, float height, 
-                                 float elevation, float dropOnTopElevation, 
-                                 boolean movable, String staircaseCutOutShape, 
-                                 float [][] modelRotation, boolean backFaceShown, String creator, 
-                                 boolean resizable, boolean deformable, boolean texturable, 
-                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
-    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth, 
-        height, elevation, dropOnTopElevation, movable, staircaseCutOutShape, modelRotation, backFaceShown, null,  
-        creator, resizable, deformable, texturable, true, price, valueAddedTaxPercentage, currency);
-  }
-  
-  /**
-   * Creates an unmodifiable catalog piece of furniture of the default catalog.
-   * @param id    the id of the new piece or <code>null</code>
-   * @param name  the name of the new piece
-   * @param description the description of the new piece 
-   * @param information additional information associated to the new piece
-   * @param tags tags associated to the new piece
-   * @param creationDate creation date of the new piece in milliseconds since the epoch 
-   * @param grade grade of the piece of furniture or <code>null</code>
-   * @param icon content of the icon of the new piece
-   * @param planIcon content of the icon of the new piece displayed in plan
-   * @param model content of the 3D model of the new piece
-   * @param width  the width in centimeters of the new piece
-   * @param depth  the depth in centimeters of the new piece
-   * @param height  the height in centimeters of the new piece
-   * @param elevation  the elevation in centimeters of the new piece
-   * @param dropOnTopElevation  a percentage of the height at which should be placed 
-   *            an object dropped on the new piece
-   * @param movable if <code>true</code>, the new piece is movable
-   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect 
-   *            with the piece like a staircase
-   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
-   * @param backFaceShown <code>true</code> if back face should be shown instead of front faces
-   * @param modelSize size of the 3D model of the new piece
-   * @param creator the creator of the model
-   * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param deformable if <code>true</code>, the width, depth and height of the new piece may 
-   *            change independently from each other
-   * @param texturable if <code>false</code> this piece should always keep the same color or texture
-   * @param horizontallyRotatable if <code>false</code> this piece 
-   *            should not rotate around an horizontal axis
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
-   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
-   * @since 5.5 
-   */
-  public CatalogPieceOfFurniture(String id, String name, String description, 
-                                 String information, String [] tags, Long creationDate, Float grade, 
-                                 Content icon, Content planIcon, Content model, 
-                                 float width, float depth, float height, 
-                                 float elevation, float dropOnTopElevation, 
-                                 boolean movable, String staircaseCutOutShape, 
-                                 float [][] modelRotation, boolean backFaceShown, Long modelSize, String creator, 
-                                 boolean resizable, boolean deformable, boolean texturable, boolean horizontallyRotatable,
-                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
-    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth, 
-        height, elevation, dropOnTopElevation, movable, staircaseCutOutShape, modelRotation, backFaceShown, modelSize,  
-        creator, resizable, deformable, texturable, true, price, valueAddedTaxPercentage, currency, null);
   }
 
   /**
    * Creates an unmodifiable catalog piece of furniture of the default catalog.
    * @param id    the id of the new piece or <code>null</code>
    * @param name  the name of the new piece
-   * @param description the description of the new piece 
+   * @param description the description of the new piece
    * @param information additional information associated to the new piece
    * @param tags tags associated to the new piece
-   * @param creationDate creation date of the new piece in milliseconds since the epoch 
+   * @param creationDate creation date of the new piece in milliseconds since the epoch
    * @param grade grade of the piece of furniture or <code>null</code>
    * @param icon content of the icon of the new piece
    * @param planIcon content of the icon of the new piece displayed in plan
@@ -475,42 +287,344 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param depth  the depth in centimeters of the new piece
    * @param height  the height in centimeters of the new piece
    * @param elevation  the elevation in centimeters of the new piece
-   * @param dropOnTopElevation  a percentage of the height at which should be placed 
+   * @param movable if <code>true</code>, the new piece is movable
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
+   *            with the piece like a staircase
+   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
+   * @param creator the creator of the model
+   * @param resizable if <code>true</code>, the size of the new piece may be edited
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
+   *            change independently from each other
+   * @param texturable if <code>false</code> this piece should always keep the same color or texture.
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
+   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
+   * @since 3.6
+   */
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 String information, String [] tags, Long creationDate, Float grade,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height,
+                                 float elevation, boolean movable, String staircaseCutOutShape,
+                                 float [][] modelRotation, String creator,
+                                 boolean resizable, boolean deformable, boolean texturable,
+                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
+    this(id, name, description, null, information, tags, creationDate, grade, icon, planIcon, model, width, depth,
+        height, elevation, 1f, movable, false, staircaseCutOutShape, null, modelRotation, 0, null, creator, resizable, deformable,
+        texturable, true, price, valueAddedTaxPercentage, currency, null, null, (float)Math.PI / 8, 0, 1, true, false);
+  }
+
+  /**
+   * Creates an unmodifiable catalog piece of furniture of the default catalog.
+   * @param id    the id of the new piece or <code>null</code>
+   * @param name  the name of the new piece
+   * @param description the description of the new piece
+   * @param information additional information associated to the new piece
+   * @param tags tags associated to the new piece
+   * @param creationDate creation date of the new piece in milliseconds since the epoch
+   * @param grade grade of the piece of furniture or <code>null</code>
+   * @param icon content of the icon of the new piece
+   * @param planIcon content of the icon of the new piece displayed in plan
+   * @param model content of the 3D model of the new piece
+   * @param width  the width in centimeters of the new piece
+   * @param depth  the depth in centimeters of the new piece
+   * @param height  the height in centimeters of the new piece
+   * @param elevation  the elevation in centimeters of the new piece
+   * @param dropOnTopElevation  a percentage of the height at which should be placed
    *            an object dropped on the new piece
    * @param movable if <code>true</code>, the new piece is movable
-   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect 
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
+   *            with the piece like a staircase
+   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
+   * @param creator the creator of the model
+   * @param resizable if <code>true</code>, the size of the new piece may be edited
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
+   *            change independently from each other
+   * @param texturable if <code>false</code> this piece should always keep the same color or texture.
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
+   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
+   * @since 4.4
+   */
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 String information, String [] tags, Long creationDate, Float grade,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height,
+                                 float elevation, float dropOnTopElevation,
+                                 boolean movable, String staircaseCutOutShape,
+                                 float [][] modelRotation, String creator,
+                                 boolean resizable, boolean deformable, boolean texturable,
+                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
+    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth, height,
+        elevation, dropOnTopElevation, movable, staircaseCutOutShape, modelRotation, false,
+        creator, resizable, deformable, texturable, price, valueAddedTaxPercentage, currency);
+  }
+
+  /**
+   * Creates an unmodifiable catalog piece of furniture of the default catalog.
+   * @param id    the id of the new piece or <code>null</code>
+   * @param name  the name of the new piece
+   * @param description the description of the new piece
+   * @param information additional information associated to the new piece
+   * @param tags tags associated to the new piece
+   * @param creationDate creation date of the new piece in milliseconds since the epoch
+   * @param grade grade of the piece of furniture or <code>null</code>
+   * @param icon content of the icon of the new piece
+   * @param planIcon content of the icon of the new piece displayed in plan
+   * @param model content of the 3D model of the new piece
+   * @param width  the width in centimeters of the new piece
+   * @param depth  the depth in centimeters of the new piece
+   * @param height  the height in centimeters of the new piece
+   * @param elevation  the elevation in centimeters of the new piece
+   * @param dropOnTopElevation  a percentage of the height at which should be placed
+   *            an object dropped on the new piece
+   * @param movable if <code>true</code>, the new piece is movable
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
+   *            with the piece like a staircase
+   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
+   * @param backFaceShown <code>true</code> if back face should be shown instead of front faces
+   * @param creator the creator of the model
+   * @param resizable if <code>true</code>, the size of the new piece may be edited
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
+   *            change independently from each other
+   * @param texturable if <code>false</code> this piece should always keep the same color or texture.
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
+   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
+   * @since 5.3
+   */
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 String information, String [] tags, Long creationDate, Float grade,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height,
+                                 float elevation, float dropOnTopElevation,
+                                 boolean movable, String staircaseCutOutShape,
+                                 float [][] modelRotation, boolean backFaceShown, String creator,
+                                 boolean resizable, boolean deformable, boolean texturable,
+                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
+    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth,
+        height, elevation, dropOnTopElevation, movable, staircaseCutOutShape, modelRotation, backFaceShown, null,
+        creator, resizable, deformable, texturable, true, price, valueAddedTaxPercentage, currency);
+  }
+
+  /**
+   * Creates an unmodifiable catalog piece of furniture of the default catalog.
+   * @param id    the id of the new piece or <code>null</code>
+   * @param name  the name of the new piece
+   * @param description the description of the new piece
+   * @param information additional information associated to the new piece
+   * @param tags tags associated to the new piece
+   * @param creationDate creation date of the new piece in milliseconds since the epoch
+   * @param grade grade of the piece of furniture or <code>null</code>
+   * @param icon content of the icon of the new piece
+   * @param planIcon content of the icon of the new piece displayed in plan
+   * @param model content of the 3D model of the new piece
+   * @param width  the width in centimeters of the new piece
+   * @param depth  the depth in centimeters of the new piece
+   * @param height  the height in centimeters of the new piece
+   * @param elevation  the elevation in centimeters of the new piece
+   * @param dropOnTopElevation  a percentage of the height at which should be placed
+   *            an object dropped on the new piece
+   * @param movable if <code>true</code>, the new piece is movable
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
    *            with the piece like a staircase
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
    * @param backFaceShown <code>true</code> if back face should be shown instead of front faces
    * @param modelSize size of the 3D model of the new piece
    * @param creator the creator of the model
    * @param resizable if <code>true</code>, the size of the new piece may be edited
-   * @param deformable if <code>true</code>, the width, depth and height of the new piece may 
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
    *            change independently from each other
    * @param texturable if <code>false</code> this piece should always keep the same color or texture
-   * @param horizontallyRotatable if <code>false</code> this piece 
+   * @param horizontallyRotatable if <code>false</code> this piece
    *            should not rotate around an horizontal axis
-   * @param price the price of the new piece or <code>null</code> 
-   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the 
-   *             price of the new piece or <code>null</code> 
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
+   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
+   * @since 5.5
+   */
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 String information, String [] tags, Long creationDate, Float grade,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height,
+                                 float elevation, float dropOnTopElevation,
+                                 boolean movable, String staircaseCutOutShape,
+                                 float [][] modelRotation, boolean backFaceShown, Long modelSize, String creator,
+                                 boolean resizable, boolean deformable, boolean texturable, boolean horizontallyRotatable,
+                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency) {
+    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth,
+        height, elevation, dropOnTopElevation, movable, staircaseCutOutShape, modelRotation, backFaceShown, modelSize,
+        creator, resizable, deformable, texturable, horizontallyRotatable, price, valueAddedTaxPercentage, currency, null);
+  }
+
+  /**
+   * Creates an unmodifiable catalog piece of furniture of the default catalog.
+   * @param id    the id of the new piece or <code>null</code>
+   * @param name  the name of the new piece
+   * @param description the description of the new piece
+   * @param information additional information associated to the new piece
+   * @param tags tags associated to the new piece
+   * @param creationDate creation date of the new piece in milliseconds since the epoch
+   * @param grade grade of the piece of furniture or <code>null</code>
+   * @param icon content of the icon of the new piece
+   * @param planIcon content of the icon of the new piece displayed in plan
+   * @param model content of the 3D model of the new piece
+   * @param width  the width in centimeters of the new piece
+   * @param depth  the depth in centimeters of the new piece
+   * @param height  the height in centimeters of the new piece
+   * @param elevation  the elevation in centimeters of the new piece
+   * @param dropOnTopElevation  a percentage of the height at which should be placed
+   *            an object dropped on the new piece
+   * @param movable if <code>true</code>, the new piece is movable
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
+   *            with the piece like a staircase
+   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
+   * @param backFaceShown <code>true</code> if back face should be shown instead of front faces
+   * @param modelSize size of the 3D model of the new piece
+   * @param creator the creator of the model
+   * @param resizable if <code>true</code>, the size of the new piece may be edited
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
+   *            change independently from each other
+   * @param texturable if <code>false</code> this piece should always keep the same color or texture
+   * @param horizontallyRotatable if <code>false</code> this piece
+   *            should not rotate around an horizontal axis
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
    * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
    * @param properties additional properties associating a key to a value or <code>null</code>
-   * @since 5.5 
+   * @since 5.7
    */
-  public CatalogPieceOfFurniture(String id, String name, String description, 
-                                 String information, String [] tags, Long creationDate, Float grade, 
-                                 Content icon, Content planIcon, Content model, 
-                                 float width, float depth, float height, 
-                                 float elevation, float dropOnTopElevation, 
-                                 boolean movable, String staircaseCutOutShape, 
-                                 float [][] modelRotation, boolean backFaceShown, Long modelSize, String creator, 
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 String information, String [] tags, Long creationDate, Float grade,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height,
+                                 float elevation, float dropOnTopElevation,
+                                 boolean movable, String staircaseCutOutShape,
+                                 float [][] modelRotation, boolean backFaceShown, Long modelSize, String creator,
                                  boolean resizable, boolean deformable, boolean texturable, boolean horizontallyRotatable,
                                  BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency,
                                  Map<String, String> properties) {
-    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth, 
-        height, elevation, dropOnTopElevation, movable, false, staircaseCutOutShape, null, modelRotation, backFaceShown, 
-        modelSize, creator, resizable, deformable, texturable, horizontallyRotatable, 
-        price, valueAddedTaxPercentage, currency, properties, (float)Math.PI / 8, true, false);
+    this(id, name, description, information, tags, creationDate, grade, icon, planIcon, model, width, depth, height, elevation,
+        dropOnTopElevation, movable, staircaseCutOutShape, modelRotation, backFaceShown ? SHOW_BACK_FACE : 0,
+        modelSize, creator, resizable, deformable, texturable, horizontallyRotatable,
+        price, valueAddedTaxPercentage, currency, properties);
+  }
+
+  /**
+   * Creates an unmodifiable catalog piece of furniture of the default catalog.
+   * @param id    the id of the new piece or <code>null</code>
+   * @param name  the name of the new piece
+   * @param description the description of the new piece
+   * @param information additional information associated to the new piece
+   * @param tags tags associated to the new piece
+   * @param creationDate creation date of the new piece in milliseconds since the epoch
+   * @param grade grade of the piece of furniture or <code>null</code>
+   * @param icon content of the icon of the new piece
+   * @param planIcon content of the icon of the new piece displayed in plan
+   * @param model content of the 3D model of the new piece
+   * @param width  the width in centimeters of the new piece
+   * @param depth  the depth in centimeters of the new piece
+   * @param height  the height in centimeters of the new piece
+   * @param elevation  the elevation in centimeters of the new piece
+   * @param dropOnTopElevation  a percentage of the height at which should be placed
+   *            an object dropped on the new piece
+   * @param movable if <code>true</code>, the new piece is movable
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
+   *            with the piece like a staircase
+   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
+   * @param modelFlags flags which should be applied to piece model
+   * @param modelSize size of the 3D model of the new piece
+   * @param creator the creator of the model
+   * @param resizable if <code>true</code>, the size of the new piece may be edited
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
+   *            change independently from each other
+   * @param texturable if <code>false</code> this piece should always keep the same color or texture
+   * @param horizontallyRotatable if <code>false</code> this piece
+   *            should not rotate around an horizontal axis
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
+   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
+   * @param properties additional properties associating a key to a value or <code>null</code>
+   * @since 7.0
+   */
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 String information, String [] tags, Long creationDate, Float grade,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height,
+                                 float elevation, float dropOnTopElevation,
+                                 boolean movable, String staircaseCutOutShape,
+                                 float [][] modelRotation, int modelFlags, Long modelSize, String creator,
+                                 boolean resizable, boolean deformable, boolean texturable, boolean horizontallyRotatable,
+                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency,
+                                 Map<String, String> properties) {
+    this(id, name, description, information, null, tags, creationDate, grade, icon, planIcon, model, width, depth,
+        height, elevation, dropOnTopElevation, movable, staircaseCutOutShape, modelRotation, modelFlags,
+        modelSize, creator, resizable, deformable, texturable, horizontallyRotatable,
+        price, valueAddedTaxPercentage, currency, properties, null);
+  }
+
+  /**
+   * Creates an unmodifiable catalog piece of furniture of the default catalog.
+   * @param id    the id of the new piece or <code>null</code>
+   * @param name  the name of the new piece
+   * @param description the description of the new piece
+   * @param information additional information associated to the new piece
+   * @param license license of the new piece
+   * @param tags tags associated to the new piece
+   * @param creationDate creation date of the new piece in milliseconds since the epoch
+   * @param grade grade of the piece of furniture or <code>null</code>
+   * @param icon content of the icon of the new piece
+   * @param planIcon content of the icon of the new piece displayed in plan
+   * @param model content of the 3D model of the new piece
+   * @param width  the width in centimeters of the new piece
+   * @param depth  the depth in centimeters of the new piece
+   * @param height  the height in centimeters of the new piece
+   * @param elevation  the elevation in centimeters of the new piece
+   * @param dropOnTopElevation  a percentage of the height at which should be placed
+   *            an object dropped on the new piece
+   * @param movable if <code>true</code>, the new piece is movable
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
+   *            with the piece like a staircase
+   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
+   * @param modelFlags flags which should be applied to piece model
+   * @param modelSize size of the 3D model of the new piece
+   * @param creator the creator of the model
+   * @param resizable if <code>true</code>, the size of the new piece may be edited
+   * @param deformable if <code>true</code>, the width, depth and height of the new piece may
+   *            change independently from each other
+   * @param texturable if <code>false</code> this piece should always keep the same color or texture
+   * @param horizontallyRotatable if <code>false</code> this piece
+   *            should not rotate around an horizontal axis
+   * @param price the price of the new piece or <code>null</code>
+   * @param valueAddedTaxPercentage the Value Added Tax percentage applied to the
+   *             price of the new piece or <code>null</code>
+   * @param currency the price currency, noted with ISO 4217 code, or <code>null</code>
+   * @param properties additional properties associating a key to a value or <code>null</code>
+   * @param contents   additional contents associating a key to a value or <code>null</code>
+   * @since 7.2
+   */
+  public CatalogPieceOfFurniture(String id, String name, String description,
+                                 String information, String license,
+                                 String [] tags, Long creationDate, Float grade,
+                                 Content icon, Content planIcon, Content model,
+                                 float width, float depth, float height,
+                                 float elevation, float dropOnTopElevation,
+                                 boolean movable, String staircaseCutOutShape,
+                                 float [][] modelRotation, int modelFlags, Long modelSize, String creator,
+                                 boolean resizable, boolean deformable, boolean texturable, boolean horizontallyRotatable,
+                                 BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency,
+                                 Map<String, String> properties, Map<String, Content> contents) {
+    this(id, name, description, information, license, tags, creationDate, grade, icon, planIcon, model, width, depth,
+        height, elevation, dropOnTopElevation,
+        movable, false, staircaseCutOutShape, null, modelRotation, modelFlags,
+        modelSize, creator, resizable, deformable, texturable, horizontallyRotatable,
+        price, valueAddedTaxPercentage, currency, properties, contents, (float)Math.PI / 8, 0, 1, true, false);
   }
 
   /**
@@ -528,20 +642,20 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
    * @param backFaceShown <code>true</code> if back face should be shown instead of front faces
    * @param iconYaw the yaw angle used to create the piece icon
-   * @param proportional if <code>true</code>, size proportions will be kept 
-   * @deprecated As of version 1.7, use constructor without <code>doorOrWindow</code> 
-   *             parameter since a catalog door and window is supposed to be an instance 
-   *             of {@link CatalogDoorOrWindow} 
+   * @param proportional if <code>true</code>, size proportions will be kept
+   * @deprecated As of version 1.7, use constructor without <code>doorOrWindow</code>
+   *             parameter since a catalog door and window is supposed to be an instance
+   *             of {@link CatalogDoorOrWindow}
    */
-  public CatalogPieceOfFurniture(String name, Content icon, Content model, 
-                                 float width, float depth, float height, float elevation, 
+  public CatalogPieceOfFurniture(String name, Content icon, Content model,
+                                 float width, float depth, float height, float elevation,
                                  boolean movable, boolean doorOrWindow, Integer color,
                                  float [][] modelRotation, boolean backFaceShown,
                                  float iconYaw, boolean proportional) {
-    this(name, icon, model, width, depth, height, elevation, movable, 
+    this(name, icon, model, width, depth, height, elevation, movable,
         color, modelRotation, backFaceShown, iconYaw, proportional);
   }
-  
+
   /**
    * Creates a modifiable catalog piece of furniture with all its values.
    * @param name  the name of the new piece
@@ -557,17 +671,17 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param backFaceShown <code>true</code> if back face should be shown
    * @param iconYaw the yaw angle used to create the piece icon
    * @param proportional if <code>true</code>, size proportions will be kept
-   * @since 1.7 
+   * @since 1.7
    */
-  public CatalogPieceOfFurniture(String name, Content icon, Content model, 
-                                 float width, float depth, float height, float elevation, 
+  public CatalogPieceOfFurniture(String name, Content icon, Content model,
+                                 float width, float depth, float height, float elevation,
                                  boolean movable, Integer color,
                                  float [][] modelRotation, boolean backFaceShown,
                                  float iconYaw, boolean proportional) {
-    this(name, icon, model, width, depth, height, elevation, movable,  
+    this(name, icon, model, width, depth, height, elevation, movable,
         null, color, modelRotation, backFaceShown, iconYaw, proportional);
   }
-  
+
   /**
    * Creates a modifiable catalog piece of furniture with all its values.
    * @param name  the name of the new piece
@@ -578,24 +692,24 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param height  the height in centimeters of the new piece
    * @param elevation  the elevation in centimeters of the new piece
    * @param movable if <code>true</code>, the new piece is movable
-   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect 
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
    *            with the piece like a staircase
    * @param color the color of the piece as RGB code or <code>null</code> if piece color is unchanged
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
    * @param backFaceShown <code>true</code> if back face should be shown
    * @param iconYaw the yaw angle used to create the piece icon
    * @param proportional if <code>true</code>, size proportions will be kept
-   * @since 3.4 
+   * @since 3.4
    */
-  public CatalogPieceOfFurniture(String name, Content icon, Content model, 
-                                 float width, float depth, float height, float elevation, 
+  public CatalogPieceOfFurniture(String name, Content icon, Content model,
+                                 float width, float depth, float height, float elevation,
                                  boolean movable, String staircaseCutOutShape,
-                                 Integer color, float [][] modelRotation, 
+                                 Integer color, float [][] modelRotation,
                                  boolean backFaceShown, float iconYaw, boolean proportional) {
-    this(name, icon, model, width, depth, height, elevation, movable, staircaseCutOutShape,  
+    this(name, icon, model, width, depth, height, elevation, movable, staircaseCutOutShape,
          color, modelRotation, backFaceShown, null, null, iconYaw, proportional);
   }
-  
+
   /**
    * Creates a modifiable catalog piece of furniture with all its values.
    * @param name  the name of the new piece
@@ -606,7 +720,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param height  the height in centimeters of the new piece
    * @param elevation  the elevation in centimeters of the new piece
    * @param movable if <code>true</code>, the new piece is movable
-   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect 
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
    *            with the piece like a staircase
    * @param color the color of the piece as RGB code or <code>null</code> if piece color is unchanged
    * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
@@ -617,32 +731,69 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    * @param proportional if <code>true</code>, size proportions will be kept
    * @since 5.5
    */
-  public CatalogPieceOfFurniture(String name, Content icon, Content model, 
-                                 float width, float depth, float height, float elevation, 
-                                 boolean movable, String staircaseCutOutShape, 
-                                 Integer color, float [][] modelRotation, boolean backFaceShown, Long modelSize, 
+  public CatalogPieceOfFurniture(String name, Content icon, Content model,
+                                 float width, float depth, float height, float elevation,
+                                 boolean movable, String staircaseCutOutShape,
+                                 Integer color, float [][] modelRotation, boolean backFaceShown, Long modelSize,
                                  String creator, float iconYaw, boolean proportional) {
-    this(null, name, null, null, new String [0], System.currentTimeMillis(), null, icon, null, model, width, depth, height, elevation, 1f,
-        movable, false, staircaseCutOutShape, color, modelRotation, backFaceShown, modelSize, creator, true, true, true, true, null, null, null, 
-        null, iconYaw, proportional, true);
+    this(null, name, null, null, null, new String [0], System.currentTimeMillis(), null, icon, null, model, width, depth, height, elevation, 1f,
+        movable, false, staircaseCutOutShape, color, modelRotation, backFaceShown ? SHOW_BACK_FACE : 0,
+        modelSize, creator, true, true, true, true, null, null, null,
+        null, null, iconYaw, (float)(-Math.PI / 16), 1, proportional, true);
   }
-  
-  private CatalogPieceOfFurniture(String id, String name, String description, 
-                                  String information, String [] tags, Long creationDate, Float grade, 
-                                  Content icon, Content planIcon, Content model, 
-                                  float width, float depth, float height, 
-                                  float elevation, float dropOnTopElevation, 
+
+  /**
+   * Creates a modifiable catalog piece of furniture with all its values.
+   * @param name  the name of the new piece
+   * @param icon content of the icon of the new piece
+   * @param model content of the 3D model of the new piece
+   * @param width  the width in centimeters of the new piece
+   * @param depth  the depth in centimeters of the new piece
+   * @param height  the height in centimeters of the new piece
+   * @param elevation  the elevation in centimeters of the new piece
+   * @param movable if <code>true</code>, the new piece is movable
+   * @param staircaseCutOutShape the shape used to cut out upper levels when they intersect
+   *            with the piece like a staircase
+   * @param color the color of the piece as RGB code or <code>null</code> if piece color is unchanged
+   * @param modelRotation the rotation 3 by 3 matrix applied to the piece model
+   * @param modelFlags flags which should be applied to piece model
+   * @param modelSize size of the 3D model of the new piece
+   * @param creator the creator of the model
+   * @param iconYaw the yaw angle used to create the piece icon
+   * @param iconPitch the pich angle used to create the piece icon
+   * @param iconScale the scale used to create the piece icon
+   * @param proportional if <code>true</code>, size proportions will be kept
+   * @since 7.0
+   */
+  public CatalogPieceOfFurniture(String name, Content icon, Content model,
+                                 float width, float depth, float height, float elevation,
+                                 boolean movable, String staircaseCutOutShape,
+                                 Integer color, float [][] modelRotation, int modelFlags, Long modelSize,
+                                 String creator, float iconYaw, float iconPitch, float iconScale, boolean proportional) {
+    this(null, name, null, null, null, new String [0], System.currentTimeMillis(), null, icon, null, model, width, depth, height, elevation, 1f,
+        movable, false, staircaseCutOutShape, color, modelRotation, modelFlags, modelSize, creator, true, true, true, true, null, null, null,
+        null, null, iconYaw, iconPitch, iconScale, proportional, true);
+  }
+
+  private CatalogPieceOfFurniture(String id, String name, String description,
+                                  String information, String license,
+                                  String [] tags, Long creationDate, Float grade,
+                                  Content icon, Content planIcon, Content model,
+                                  float width, float depth, float height,
+                                  float elevation, float dropOnTopElevation,
                                   boolean movable, boolean doorOrWindow, String staircaseCutOutShape,
-                                  Integer color, float [][] modelRotation, boolean backFaceShown, 
-                                  Long modelSize, String creator, boolean resizable, 
+                                  Integer color, float [][] modelRotation, int modelFlags,
+                                  Long modelSize, String creator, boolean resizable,
                                   boolean deformable, boolean texturable, boolean horizontallyRotatable,
                                   BigDecimal price, BigDecimal valueAddedTaxPercentage, String currency,
-                                  Map<String, String> properties, 
-                                  float iconYaw, boolean proportional, boolean modifiable) {
+                                  Map<String, String> properties, Map<String, Content> contents,
+                                  float iconYaw, float iconPitch, float iconScale, boolean proportional,
+                                  boolean modifiable) {
     this.id = id;
     this.name = name;
     this.description = description;
     this.information = information;
+    this.license = license;
     this.tags = tags;
     this.creationDate = creationDate;
     this.grade = grade;
@@ -663,22 +814,36 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
     this.price = price;
     this.valueAddedTaxPercentage = valueAddedTaxPercentage;
     this.currency = currency;
-    this.properties = properties == null || properties.size() == 0
-        ? Collections.<String, String>emptyMap()
-        : (properties.size() == 1
-            ? Collections.singletonMap(properties.keySet().iterator().next(), properties.values().iterator().next())
-            : new HashMap<String, String>(properties));
-    if (modelRotation == null) {
-      this.modelRotation = INDENTITY_ROTATION;
+    // Merge properties and contents in the same map
+    if (properties == null || properties.size() == 0) {
+      if (contents == null || contents.size() == 0) {
+        this.properties = Collections.<String, Object>emptyMap();
+      } else if (contents.size() == 1) {
+        this.properties = Collections.singletonMap(contents.keySet().iterator().next(), (Object)contents.values().iterator().next());
+      } else {
+        this.properties = new HashMap<String, Object>(contents);
+      }
+    } else if (properties.size() == 1 && (contents == null || contents.size() == 0)) {
+      this.properties = Collections.singletonMap(properties.keySet().iterator().next(), (Object)properties.values().iterator().next());
     } else {
-      this.modelRotation = deepCopy(modelRotation);
+      this.properties = new HashMap<String, Object>(properties);
+      if (contents != null) {
+        this.properties.putAll(contents);
+      }
     }
-    this.backFaceShown = backFaceShown;
+    if (modelRotation == null) {
+      this.modelRotation = IDENTITY_ROTATION;
+    } else {
+      this.modelRotation = deepClone(modelRotation);
+    }
+    this.modelFlags = modelFlags;
     this.modelSize = modelSize;
     this.resizable = resizable;
     this.deformable = deformable;
     this.texturable = texturable;
     this.iconYaw = iconYaw;
+    this.iconPitch = iconPitch;
+    this.iconScale = iconScale;
     this.proportional = proportional;
     this.modifiable = modifiable;
   }
@@ -689,7 +854,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public String getId() {
     return this.id;
   }
-  
+
   /**
    * Returns the name of this piece of furniture.
    */
@@ -712,7 +877,15 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public String getInformation() {
     return this.information;
   }
-  
+
+  /**
+   * Returns the license associated to this piece, or <code>null</code>.
+   * @since 7.2
+   */
+  public String getLicense() {
+    return this.license;
+  }
+
   /**
    * Returns the tags associated to this piece.
    * @since 3.6
@@ -720,9 +893,9 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public String [] getTags() {
     return this.tags;
   }
-  
+
   /**
-   * Returns the creation date of this piece in milliseconds since the epoch, 
+   * Returns the creation date of this piece in milliseconds since the epoch,
    * or <code>null</code> if no date is given to this piece.
    * @since 3.6
    */
@@ -737,7 +910,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public Float getGrade() {
     return this.grade;
   }
-  
+
   /**
    * Returns the depth of this piece of furniture.
    */
@@ -768,9 +941,9 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
 
   /**
    * Returns the elevation at which should be placed an object dropped on this piece.
-   * @return a percentage of the height of this piece. A negative value means that the piece 
-   *         should be ignored when an object is dropped on it. 
-   * @since 4.4 
+   * @return a percentage of the height of this piece. A negative value means that the piece
+   *         should be ignored when an object is dropped on it.
+   * @since 4.4
    */
   public float getDropOnTopElevation() {
     return this.dropOnTopElevation;
@@ -792,7 +965,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public boolean isDoorOrWindow() {
     return this.doorOrWindow;
   }
-  
+
   /**
    * Returns the icon of this piece of furniture.
    */
@@ -814,7 +987,15 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public Content getModel() {
     return this.model;
   }
-  
+
+  /**
+   * Returns the flags which should be applied to the 3D model of this piece of furniture.
+   * @since 7.0
+   */
+  public int getModelFlags() {
+    return this.modelFlags;
+  }
+
   /**
    * Returns the size of the 3D model of this piece of furniture.
    * @since 5.5
@@ -824,87 +1005,108 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   }
 
   /**
-   * Returns the rotation 3 by 3 matrix of this piece of furniture that ensures 
+   * Returns the rotation 3 by 3 matrix of this piece of furniture that ensures
    * its model is correctly oriented.
    */
   public float [][] getModelRotation() {
-    // Return a deep copy to avoid any misuse of piece data
-    return deepCopy(this.modelRotation);
-  }
-
-  private float [][] deepCopy(float [][] modelRotation) {
-    return new float [][] {{modelRotation [0][0], modelRotation [0][1], modelRotation [0][2]},
-                           {modelRotation [1][0], modelRotation [1][1], modelRotation [1][2]},
-                           {modelRotation [2][0], modelRotation [2][1], modelRotation [2][2]}};
+    // Return a deep clone to avoid any misuse of piece data
+    return deepClone(this.modelRotation);
   }
 
   /**
-   * Returns the shape used to cut out upper levels when they intersect with the piece   
+   * Returns a deep copy of the given array.
+   */
+  static float [][] deepClone(float [][] array) {
+    float [][] clone = new float [array.length][];
+    for (int i = 0; i < array.length; i++) {
+      clone [i] = array [i].clone();
+    }
+    return clone;
+  }
+
+  /**
+   * Returns the shape used to cut out upper levels when they intersect with the piece
    * like a staircase.
    * @since 3.4
    */
   public String getStaircaseCutOutShape() {
     return this.staircaseCutOutShape;
   }
-  
+
   /**
    * Returns the creator of this piece.
    */
   public String getCreator() {
     return this.creator;
   }
-  
+
   /**
    * Returns <code>true</code> if the back face of the piece of furniture
    * model should be displayed.
    */
   public boolean isBackFaceShown() {
-    return this.backFaceShown;
+    return (this.modelFlags & SHOW_BACK_FACE) == SHOW_BACK_FACE;
   }
-  
+
   /**
    * Returns the color of this piece of furniture.
    */
   public Integer getColor() {
     return this.color;
   }
-  
+
   /**
    * Returns the yaw angle used to create the piece icon.
    */
   public float getIconYaw() {
     return this.iconYaw;
   }
-  
+
+  /**
+   * Returns the pitch angle used to create the piece icon.
+   * @since 7.0
+   */
+  public float getIconPitch() {
+    return this.iconPitch;
+  }
+
+  /**
+   * Returns the scale used to create the piece icon.
+   * @since 7.0
+   */
+  public float getIconScale() {
+    return this.iconScale;
+  }
+
   /**
    * Returns <code>true</code> if size proportions should be kept.
    */
   public boolean isProportional() {
     return this.proportional;
   }
-  
+
   /**
    * Returns <code>true</code> if this piece is modifiable (not read from resources).
    */
   public boolean isModifiable() {
     return this.modifiable;
   }
-  
+
   /**
    * Returns <code>true</code> if this piece is resizable.
    */
   public boolean isResizable() {
-    return this.resizable;    
+    return this.resizable;
   }
-  
+
   /**
    * Returns <code>true</code> if this piece is deformable.
    * @since 3.0
    */
   public boolean isDeformable() {
-    return this.deformable;    
+    return this.deformable;
   }
-  
+
   /**
    * Returns <code>true</code> if this piece is deformable.
    * @since 5.5
@@ -920,7 +1122,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public boolean isTexturable() {
     return this.texturable;
   }
-  
+
   /**
    * Returns <code>false</code> if this piece should not rotate around an horizontal axis.
    * @since 5.5
@@ -928,44 +1130,71 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public boolean isHorizontallyRotatable() {
     return this.horizontallyRotatable;
   }
-  
+
   /**
-   * Returns the price of this piece of furniture or <code>null</code>. 
+   * Returns the price of this piece of furniture or <code>null</code>.
    */
   public BigDecimal getPrice() {
     return this.price;
   }
-  
+
   /**
-   * Returns the Value Added Tax percentage applied to the price of this piece of furniture. 
+   * Returns the Value Added Tax percentage applied to the price of this piece of furniture.
    */
   public BigDecimal getValueAddedTaxPercentage() {
     return this.valueAddedTaxPercentage;
   }
 
   /**
-   * Returns the price currency, noted with ISO 4217 code, or <code>null</code> 
+   * Returns the price currency, noted with ISO 4217 code, or <code>null</code>
    * if it has no price or default currency should be used.
    * @since 3.4
    */
   public String getCurrency() {
     return this.currency;
   }
-  
+
   /**
    * Returns the value of an additional property <code>name</code> of this piece.
-   * @return the value of the property or <code>null</code> if it doesn't exist. 
+   * @return the value of the property or <code>null</code> if it doesn't exist or if it's not a string.
    */
   public String getProperty(String name) {
-    return this.properties.get(name);
+    Object propertyValue = this.properties.get(name);
+    if (propertyValue instanceof String) {
+      return (String)propertyValue;
+    } else {
+      return null;
+    }
   }
-  
+
   /**
    * Returns the names of the additional properties of this piece.
-   * @return a collection of all the names of the properties 
+   * @return a collection of all the names of the properties
    */
   public Collection<String> getPropertyNames() {
     return this.properties.keySet();
+  }
+
+  /**
+   * Returns the value of an additional content <code>name</code> associated to this piece.
+   * @return the value of the content or <code>null</code> if it doesn't exist or if it's not a content.
+   * @since 7.2
+   */
+  public Content getContentProperty(String name) {
+    Object propertyValue = this.properties.get(name);
+    if (propertyValue instanceof Content) {
+      return (Content)propertyValue;
+    } else {
+      return null;
+    }
+  }
+
+  /**
+   * Returns <code>true</code> if the type of given additional property is a content.
+   * @since 7.2
+   */
+  public boolean isContentProperty(String name) {
+    return this.properties.get(name) instanceof Content;
   }
 
   /**
@@ -974,15 +1203,15 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
   public FurnitureCategory getCategory() {
     return this.category;
   }
-  
+
   /**
    * Sets the category of this piece of furniture.
    */
   void setCategory(FurnitureCategory category) {
     this.category = category;
   }
-  
-  /** 
+
+  /**
    * Returns <code>true</code> if this piece and the one in parameter are the same objects.
    * Note that, from version 3.6, two pieces of furniture can have the same name.
    */
@@ -991,7 +1220,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
     return super.equals(obj);
   }
 
-  /** 
+  /**
    * Returns default hash code.
    */
    @Override
@@ -999,7 +1228,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
     return super.hashCode();
   }
 
-  /** 
+  /**
    * Compares the names of this piece and the one in parameter.
    */
   public int compareTo(CatalogPieceOfFurniture piece) {
@@ -1007,17 +1236,17 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
     if (nameComparison != 0) {
       return nameComparison;
     } else {
-      return this.modifiable == piece.modifiable 
+      return this.modifiable == piece.modifiable
           ? 0
-          : (this.modifiable ? 1 : -1); 
+          : (this.modifiable ? 1 : -1);
     }
   }
-  
+
   /**
-   * Returns <code>true</code> if this piece matches the given <code>filter</code> text. 
+   * Returns <code>true</code> if this piece matches the given <code>filter</code> text.
    * Each substring of the <code>filter</code> is considered as a search criterion that can match
-   * the name, the category name, the creator, the description or the tags of this piece.
-   * @since 4.2  
+   * the name, the category name, the creator, the license, the description or the tags of this piece.
+   * @since 4.2
    */
   public boolean matchesFilter(String filter) {
     byte [][] filterCriteriaCollationKeys = getFilterCollationKeys(filter);
@@ -1034,7 +1263,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
     }
     return checkedCriteria == filterCriteriaCollationKeys.length;
   }
-  
+
   /**
    * Returns the collation key bytes of each criterion in the given <code>filter</code>.
    */
@@ -1044,7 +1273,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
     }
     byte [][] filterCollationKeys = recentFilters.get(filter);
     if (filterCollationKeys == null) {
-      // Each substring in filter is a search criterion that must be verified 
+      // Each substring in filter is a search criterion that must be verified
       String [] filterCriteria = filter.split("\\s|\\p{Punct}|\\|");
       List<byte []> filterCriteriaCollationKeys = new ArrayList<byte []>(filterCriteria.length);
       for (String criterion : filterCriteria) {
@@ -1067,7 +1296,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
    */
   private byte [] getPieceOfFurnitureCollationKey() {
     if (this.filterCollationKey == null) {
-      // Prepare filter string collation key  
+      // Prepare filter string collation key
       StringBuilder search = new StringBuilder();
       for (String criterion : getFilterCriteria()) {
         if (search.length() != 0) {
@@ -1079,11 +1308,11 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
     }
     return this.filterCollationKey;
   }
-  
+
   /**
-   * Returns the strings used as criteria for filtering (name, category, creator, description and tags). 
+   * Returns the strings used as criteria for filtering (name, category, creator, license, description and tags).
    * @see CatalogPieceOfFurniture#matchesFilter(String)
-   * @since 6.2 
+   * @since 6.2
    */
   protected String [] getFilterCriteria() {
     List<String> criteria = new ArrayList<String>();
@@ -1097,12 +1326,15 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
     if (getDescription() != null) {
       criteria.add(getDescription());
     }
+    if (getLicense() != null) {
+      criteria.add(getLicense());
+    }
     for (String tag : getTags()) {
       criteria.add(tag);
     }
     return criteria.toArray(new String [criteria.size()]);
   }
-  
+
   /**
    * Returns <code>true</code> if the given filter collation key is a sub part of the first array collator key.
    */
@@ -1132,7 +1364,7 @@ public class CatalogPieceOfFurniture implements Comparable<CatalogPieceOfFurnitu
       clone.category = null;
       return clone;
     } catch (CloneNotSupportedException ex) {
-      throw new IllegalStateException("Super class isn't cloneable"); 
+      throw new IllegalStateException("Super class isn't cloneable");
     }
   }
 }

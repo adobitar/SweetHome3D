@@ -1,7 +1,7 @@
 /*
  * HomeObject.java 08 Sept. 2016
  *
- * Sweet Home 3D, Copyright (c) 2016 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ public abstract class HomeObject implements Serializable, Cloneable {
   private static final String ID_DEFAULT_PREFIX = "object";
 
   private String id; // Should be final but readObject needs to create a default one
-  private Map<String, String> properties;
+  private Map<String, Object> properties;
 
   private transient PropertyChangeSupport propertyChangeSupport;
 
@@ -105,9 +105,7 @@ public abstract class HomeObject implements Serializable, Cloneable {
   /**
    * Adds the property change <code>listener</code> in parameter to this object.
    * Properties set with {@link #setProperty(String, String) setProperty} will be notified with
-   * an event of {@link UserPropertyChangeEvent} class, whereas property change events fired by
-   * subclasses of <code>HomeObject</code> will be of {@link PropertyChangeEvent} class,
-   * which can be useful to distinguish homonym property names.
+   * an event of {@link PropertyChangeEvent} class.
    * @since 6.4
    */
   public void addPropertyChangeListener(PropertyChangeListener listener) {
@@ -134,9 +132,7 @@ public abstract class HomeObject implements Serializable, Cloneable {
   /**
    * Adds the property change <code>listener</code> in parameter to this object for a specific property name.
    * Properties set with {@link #setProperty(String, String) setProperty} will be notified with
-   * an event of {@link UserPropertyChangeEvent} class, whereas property change events fired by
-   * subclasses of <code>HomeObject</code> will be of {@link PropertyChangeEvent} class,
-   * which can be useful to distinguish homonym property names.
+   * an event of {@link PropertyChangeEvent} class.
    * @since 6.4
    */
   public void addPropertyChangeListener(String propertyName, PropertyChangeListener listener) {
@@ -182,23 +178,67 @@ public abstract class HomeObject implements Serializable, Cloneable {
    */
   public String getProperty(String name) {
     if (this.properties != null) {
-      return this.properties.get(name);
-    } else {
-      return null;
+      Object propertyValue = this.properties.get(name);
+      if (propertyValue instanceof String) {
+        return (String)propertyValue;
+      }
     }
+    return null;
   }
 
   /**
-   * Sets a property associated with this object. Once the property is updated,
-   * listeners added to this object will receive a change event of
-   * {@link UserPropertyChangeEvent} class.<br>
+   * Returns the value of the content <code>name</code> associated to this object.
+   * @return the value of the content or <code>null</code> if it doesn't exist or if it's not a content.
+   * @since 7.2
+   */
+  public Content getContentProperty(String name) {
+    if (this.properties != null) {
+      Object propertyValue = this.properties.get(name);
+      if (propertyValue instanceof Content) {
+        return (Content)propertyValue;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns <code>true</code> if the type of given property is a content.
+   * @since 7.2
+   */
+  public boolean isContentProperty(String name) {
+    return this.properties != null
+        && this.properties.get(name) instanceof Content;
+  }
+
+  /**
+   * Sets the value of a property associated with this object. Once the property is updated,
+   * listeners added to this object will receive a change event of {@link PropertyChangeEvent} class.<br>
    * To avoid any issue with existing or future properties of Sweet Home 3D classes,
    * do not use property names written with only upper case letters.
    * @param name   the name of the property to set
-   * @param value  the new value of the property
+   * @param value  the new value of the property or <code>null</code> to remove an existing property
    */
   public void setProperty(String name, String value) {
-    String oldValue = this.properties != null
+    setProperty(name, (Object)value);
+  }
+
+  /**
+   * Sets the property associated with this object. Once the property is updated,
+   * listeners added to this object will receive a change event of {@link PropertyChangeEvent} class.<br>
+   * To avoid any issue with existing or future properties of Sweet Home 3D classes,
+   * do not use property names written with only upper case letters.
+   * @param name   the name of the property to set
+   * @param value  the new value of the property or <code>null</code> to remove an existing property
+   * @throws IllegalArgumentException if the <code>value</code> isn't an instance of {@link String} of {@link Content}
+   * @since 7.2
+   */
+  public void setProperty(String name, Object value) {
+    if (value != null
+        && !(value instanceof String
+             || value instanceof Content)) {
+      throw new IllegalArgumentException("Property value can be only a string or a content, not an instance of " + value.getClass());
+    }
+    Object oldValue = this.properties != null
         ? this.properties.get(name)
         : null;
     if (value == null) {
@@ -219,11 +259,11 @@ public abstract class HomeObject implements Serializable, Cloneable {
           || (this.properties.size() == 1
               && oldValue != null)) {
         // Create properties map on the fly with a singleton map first
-        this.properties = Collections.singletonMap(name, value);
+        this.properties = Collections.singletonMap(name, (Object)value);
       } else {
         if (this.properties.size() == 1) {
           // Then a HashMap if the user needs more than a property
-          this.properties = new HashMap<String, String>(this.properties);
+          this.properties = new HashMap<String, Object>(this.properties);
         }
         this.properties.put(name, value);
       }
@@ -275,8 +315,8 @@ public abstract class HomeObject implements Serializable, Cloneable {
       HomeObject clone = (HomeObject)super.clone();
       if (this.properties != null) {
         clone.properties = clone.properties.size() == 1
-            ? Collections.singletonMap(this.properties.keySet().iterator().next(), this.properties.values().iterator().next())
-            : new HashMap<String, String>(this.properties);
+            ? Collections.singletonMap(this.properties.keySet().iterator().next(), (Object)this.properties.values().iterator().next())
+            : new HashMap<String, Object>(this.properties);
       }
       clone.propertyChangeSupport = null;
       return clone;

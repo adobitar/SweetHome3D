@@ -1,7 +1,7 @@
 /*
  * Polyline.java 17 juin 2015
  *
- * Sweet Home 3D, Copyright (c) 2015 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -551,7 +551,6 @@ public class Polyline extends HomeObject implements Selectable, Elevatable {
 
   /**
    * Returns the elevation of this polyline in 3D.
-   * @return an elevation or <code>null</code> if the polyline shouldn't be displayed in 3D.
    * @since 6.0
    */
   public float getElevation() {

@@ -1,7 +1,7 @@
 /*
  * MacOSXConfiguraton.java 6 sept. 2006
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowStateListener;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -296,6 +297,7 @@ class MacOSXConfiguration {
             homeFrame.addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosed(WindowEvent ev) {
+                  ev.getWindow().removeWindowListener(this);
                   if (defaultFrame != null) {
                     List<Home> homes = homeApplication.getHomes();
                     defaultFrame.setVisible(false);
@@ -308,12 +310,22 @@ class MacOSXConfiguration {
                 }
               });
           }
-          homeFrame.addWindowStateListener(new WindowStateListener() {
+
+          final WindowStateListener windowStateListener = new WindowStateListener() {
               public void windowStateChanged(WindowEvent ev) {
                 // Enable default actions if needed
                 enableDefaultActions(homeApplication, defaultHomeView);
               }
+            };
+          homeFrame.addWindowStateListener(windowStateListener);
+          homeFrame.addWindowListener(new WindowAdapter() {
+              @Override
+              public void windowClosed(WindowEvent ev) {
+                ev.getWindow().removeWindowListener(this);
+                ev.getWindow().removeWindowStateListener(windowStateListener);
+              }
             });
+
           // Don't enable actions in default menu bar (the menu bar might be displayed when file dialogs are displayed)
           setDefaultActionsEnabled(defaultHomeView, false);
         } else if (ev.getType() == CollectionEvent.Type.DELETE) {
@@ -383,11 +395,11 @@ class MacOSXConfiguration {
   protected static void handleAbout(final SweetHome3D homeApplication,
                                     final HomeController defaultController,
                                     final JFrame defaultFrame) {
-      handleApplicationMenuAction(new Runnable() {
-          public void run() {
-            getActiveHomeController(homeApplication, defaultController, defaultFrame).about();
-          }
-        }, defaultFrame);
+    handleApplicationMenuAction(new Runnable() {
+        public void run() {
+          getActiveHomeController(homeApplication, defaultController, defaultFrame).about();
+        }
+      }, defaultFrame);
   }
 
   /**
@@ -573,6 +585,8 @@ class MacOSXConfiguration {
                                     final SweetHome3D homeApplication,
                                     final HomePane defaultHomeView,
                                     final Home home) {
+    // Use frame in listeners from a weak reference to ensure it will be garbage collected
+    final WeakReference<JFrame> frameReference = new WeakReference<JFrame>(frame);
     UserPreferences preferences = homeApplication.getUserPreferences();
     final JMenu windowMenu = new JMenu(
         new ResourceAction(preferences, MacOSXConfiguration.class, "WINDOW_MENU", true));
@@ -583,13 +597,14 @@ class MacOSXConfiguration {
         new ResourceAction(preferences, MacOSXConfiguration.class, "MINIMIZE", enabledMenuItem) {
             @Override
             public void actionPerformed(ActionEvent ev) {
-              frame.setState(JFrame.ICONIFIED);
+              frameReference.get().setState(JFrame.ICONIFIED);
             }
           }));
     windowMenu.add(new JMenuItem(
         new ResourceAction(preferences, MacOSXConfiguration.class, "ZOOM", enabledMenuItem) {
             @Override
             public void actionPerformed(ActionEvent ev) {
+              JFrame frame = frameReference.get();
               if ((frame.getExtendedState() & JFrame.MAXIMIZED_BOTH) != 0) {
                 frame.setExtendedState(frame.getExtendedState() & ~JFrame.MAXIMIZED_BOTH);
               } else {
@@ -603,17 +618,17 @@ class MacOSXConfiguration {
             @Override
             public void actionPerformed(ActionEvent ev) {
               // Avoid blinking while bringing other windows to front
-              frame.setAlwaysOnTop(true);
+              frameReference.get().setAlwaysOnTop(true);
               for (Home home : homeApplication.getHomes()) {
                 JFrame applicationFrame = homeApplication.getHomeFrame(home);
-                if (applicationFrame != frame
+                if (applicationFrame != frameReference.get()
                     && applicationFrame.getState() != JFrame.ICONIFIED) {
                   applicationFrame.setFocusableWindowState(false);
                   applicationFrame.toFront();
                   applicationFrame.setFocusableWindowState(true);
                 }
               }
-              frame.setAlwaysOnTop(false);
+              frameReference.get().setAlwaysOnTop(false);
             }
           }));
 
@@ -636,6 +651,7 @@ class MacOSXConfiguration {
               windowMenu.remove(windowMenu.getMenuComponentCount() - 1);
               if (home == ev.getItem()) {
                 homeApplication.removeHomesListener(this);
+                frame.setMenuBar(null); // Help Garbage Collector
               }
               break;
           }
@@ -652,7 +668,7 @@ class MacOSXConfiguration {
             JCheckBoxMenuItem windowMenuItem =  (JCheckBoxMenuItem)windowMenu.getMenuComponent(i);
             JFrame applicationFrame = homeApplication.getHomeFrame(homes.get(index));
             windowMenuItem.setText(applicationFrame.getTitle());
-            windowMenuItem.setSelected(frame == applicationFrame);
+            windowMenuItem.setSelected(frameReference.get() == applicationFrame);
           }
         }
 
@@ -688,15 +704,26 @@ class MacOSXConfiguration {
       if (OperatingSystem.isJavaVersionGreaterOrEqual("1.7.0_12")) {
         toolBar.setFloatable(false);
         rootPane.putClientProperty("apple.awt.brushMetalLook", true);
+        final boolean macOSXBigSurWithJava15 = OperatingSystem.isMacOSXBigSurOrSuperior() && OperatingSystem.isJavaVersionGreaterOrEqual("15");
         toolBar.setBorder(new AbstractBorder() {
-            private final Color TOP_GRADIENT_COLOR_ACTIVATED_FRAME = OperatingSystem.isMacOSXYosemiteOrSuperior()
-                ? new Color(212, 212, 212)
-                : new Color(222, 222, 222);
-            private final Color BOTTOM_GRADIENT_COLOR_ACTIVATED_FRAME = OperatingSystem.isMacOSXYosemiteOrSuperior()
-                ? new Color(209, 209, 209)
-                : new Color(178, 178, 178);
-            private final Color TOP_GRADIENT_COLOR_DEACTIVATED_FRAME  = new Color(244, 244, 244);
-            private final Color BOTTOM_GRADIENT_COLOR_DEACTIVATED_FRAME = TOP_GRADIENT_COLOR_ACTIVATED_FRAME;
+            private final Color TOP_GRADIENT_COLOR_ACTIVATED_FRAME = macOSXBigSurWithJava15
+                ? new Color(245, 245, 245)
+                : (OperatingSystem.isMacOSXYosemiteOrSuperior()
+                    ? new Color(212, 212, 212)
+                    : new Color(222, 222, 222));
+            private final Color BOTTOM_GRADIENT_COLOR_ACTIVATED_FRAME = macOSXBigSurWithJava15
+                ? TOP_GRADIENT_COLOR_ACTIVATED_FRAME
+                : (OperatingSystem.isMacOSXYosemiteOrSuperior()
+                    ? new Color(209, 209, 209)
+                    : new Color(178, 178, 178));
+            private final Color TOP_GRADIENT_COLOR_DEACTIVATED_FRAME  = macOSXBigSurWithJava15
+                ? new Color(242, 242, 242)
+                : new Color(244, 244, 244);
+            private final Color BOTTOM_GRADIENT_COLOR_DEACTIVATED_FRAME = macOSXBigSurWithJava15
+                ? TOP_GRADIENT_COLOR_DEACTIVATED_FRAME
+                : TOP_GRADIENT_COLOR_ACTIVATED_FRAME;
+            private final int INSETS_TOP = OperatingSystem.isMacOSXBigSurOrSuperior() ? 0 : -4;
+            private final int INSETS_BOTTOM = OperatingSystem.isMacOSXBigSurOrSuperior() ? -2 : 0;
 
             @Override
             public boolean isBorderOpaque() {
@@ -705,13 +732,13 @@ class MacOSXConfiguration {
 
             @Override
             public Insets getBorderInsets(Component c) {
-              return new Insets(-4, 4, 0, 4);
+              return new Insets(INSETS_TOP, 4, INSETS_BOTTOM, 4);
             }
 
             @Override
             public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
               // Paint the tool bar with a gradient different if the frame is activated or not
-              Component root = SwingUtilities.getRoot(rootPane);
+              Component root = SwingUtilities.getRoot(c);
               boolean active = ((JFrame)root).isActive();
               ((Graphics2D)g).setPaint(new GradientPaint(0, y,
                   active ? TOP_GRADIENT_COLOR_ACTIVATED_FRAME : TOP_GRADIENT_COLOR_DEACTIVATED_FRAME,
@@ -748,7 +775,8 @@ class MacOSXConfiguration {
             private Object fullScreenListener;
 
             public void ancestorAdded(AncestorEvent ev) {
-              ((Window)SwingUtilities.getRoot(toolBar)).addWindowListener(new WindowAdapter() {
+              Window frame = (Window)SwingUtilities.getRoot(rootPane);
+              frame.addWindowListener(new WindowAdapter() {
                   @Override
                   public void windowActivated(WindowEvent ev) {
                     toolBar.repaint();
@@ -757,6 +785,13 @@ class MacOSXConfiguration {
                   @Override
                   public void windowDeactivated(WindowEvent ev) {
                     toolBar.repaint();
+                  }
+
+                  @Override
+                  public void windowClosed(WindowEvent ev) {
+                    ev.getWindow().removeWindowListener(this);
+                    toolBar.removeMouseListener(mouseListener);
+                    toolBar.removeMouseMotionListener(mouseListener);
                   }
                 });
               toolBar.repaint();
@@ -776,8 +811,7 @@ class MacOSXConfiguration {
                       toolBar.addMouseMotionListener(mouseListener);
                     }
                   };
-                FullScreenUtilities.addFullScreenListenerTo((Window)SwingUtilities.getRoot(rootPane),
-                    (FullScreenListener)this.fullScreenListener);
+                FullScreenUtilities.addFullScreenListenerTo(frame, (FullScreenListener)this.fullScreenListener);
               } catch (ClassNotFoundException ex) {
                 // If FullScreenUtilities isn't supported, ignore mouse listener switch
               }
@@ -838,7 +872,7 @@ class MacOSXConfiguration {
 
   /**
    * Listener for Mac OS X application events.
-   * Declared in a separated static class and instantiated by reflection to be able to run Sweet Home 3D with Java 10.
+   * Declared in a separate static class and instantiated by reflection to be able to run Sweet Home 3D with Java 10.
    */
   private static class MacOSXApplicationListener extends ApplicationAdapter {
     private final JFrame         defaultFrame;

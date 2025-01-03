@@ -1,7 +1,7 @@
 /*
  * PhotoCreationTest.java 18 sept. 2010
  *
- * Copyright (c) 2010 Emmanuel PUYBARET / eTeks <info@eteks.com>. All Rights Reserved.
+ * Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@ package com.eteks.sweethome3d.junit;
 
 import java.awt.Component;
 import java.awt.Dialog;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -51,6 +53,7 @@ import abbot.tester.JSliderTester;
 
 import com.eteks.sweethome3d.io.DefaultUserPreferences;
 import com.eteks.sweethome3d.io.HomeFileRecorder;
+import com.eteks.sweethome3d.j3d.PhotoRenderer;
 import com.eteks.sweethome3d.model.AspectRatio;
 import com.eteks.sweethome3d.model.Compass;
 import com.eteks.sweethome3d.model.Home;
@@ -80,6 +83,7 @@ public class PhotoCreationTest extends ComponentTestFixture {
   @Override
   protected void setUp() throws Exception {
     super.setUp();
+    System.setProperty("com.eteks.sweethome3d.j3d.rendererClassNames", PhotoRenderer.class.getName());
     this.preferences = new DefaultUserPreferences() {
         @Override
         public void write() throws RecorderException {        
@@ -165,7 +169,7 @@ public class PhotoCreationTest extends ComponentTestFixture {
     // Retrieve PhotoPanel components
     PhotoPanel panel = (PhotoPanel)TestUtilities.findComponent(photoCreationDialog, PhotoPanel.class);    
     JButton createButton = (JButton)TestUtilities.getField(panel, "createButton");
-    JButton saveButton = (JButton)TestUtilities.getField(panel, "saveButton");
+    final JButton saveButton = (JButton)TestUtilities.getField(panel, "saveButton");
     JButton closeButton = (JButton)TestUtilities.getField(panel, "closeButton");
     PhotoSizeAndQualityPanel sizePanel = (PhotoSizeAndQualityPanel)TestUtilities.getField(panel, "sizeAndQualityPanel");
     final JSpinner widthSpinner = (JSpinner)TestUtilities.getField(sizePanel, "widthSpinner");
@@ -181,11 +185,15 @@ public class PhotoCreationTest extends ComponentTestFixture {
       });
     assertEquals("Height spinner has wrong value", 200, ((Number)heightSpinner.getValue()).intValue());
     JSliderTester sliderTester = new JSliderTester();
+    createButton.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent ev) {
+          assertFalse("Rendering didn't start", saveButton.isEnabled());
+        }
+      });
     for (int i = qualitySlider.getMinimum(); i <= qualitySlider.getMaximum(); i++) {
       sliderTester.actionSlide(qualitySlider, i);
       // Test image creation at each quality 
       tester.actionClick(createButton);
-      assertFalse("Rendering didn't start", saveButton.isEnabled());
       // Wait image is generated
       for (int j = 0; j < 1000 && !saveButton.isEnabled(); j++) {
         Thread.sleep(100);

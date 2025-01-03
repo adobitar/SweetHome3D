@@ -1,7 +1,7 @@
 /*
  * DAELoader.java 16 Mai 2010
  *
- * Sweet Home 3D, Copyright (c) 2010 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,14 +95,14 @@ public class DAELoader extends LoaderBase implements Loader {
 
   /**
    * Sets whether this loader should try or avoid accessing to URLs with cache.
-   * @param useCaches <code>Boolean.TRUE</code>, <code>Boolean.FALSE</code>, or 
-   *    <code>null</code> then caches will be used according to the value 
+   * @param useCaches <code>Boolean.TRUE</code>, <code>Boolean.FALSE</code>, or
+   *    <code>null</code> then caches will be used according to the value
    *    returned by {@link URLConnection#getDefaultUseCaches()}.
    */
   public void setUseCaches(Boolean useCaches) {
     this.useCaches = Boolean.valueOf(useCaches);
   }
-  
+
   /**
    * Returns the scene described in the given DAE file.
    */
@@ -113,7 +113,7 @@ public class DAELoader extends LoaderBase implements Loader {
         baseUrl = new File(this.basePath).toURI().toURL();
       } else {
         baseUrl = new File(file).toURI().toURL();
-      } 
+      }
     } catch (MalformedURLException ex) {
       throw new FileNotFoundException(file);
     }
@@ -127,7 +127,7 @@ public class DAELoader extends LoaderBase implements Loader {
     URL baseUrl = this.baseUrl;
     if (this.baseUrl == null) {
       baseUrl = url;
-    } 
+    }
     InputStream in;
     try {
       in = openStream(url);
@@ -173,9 +173,9 @@ public class DAELoader extends LoaderBase implements Loader {
   }
 
   /**
-   * Returns the scene parsed from a Collada XML stream. 
+   * Returns the scene parsed from a Collada XML stream.
    */
-  private Scene parseXMLStream(InputStream in, 
+  private Scene parseXMLStream(InputStream in,
                                URL baseUrl) throws IOException {
     try {
       SceneBase scene = new SceneBase();
@@ -193,7 +193,7 @@ public class DAELoader extends LoaderBase implements Loader {
       throw ex2;
     }
   }
-  
+
   /**
    * SAX handler for DAE Collada stream.
    */
@@ -223,6 +223,7 @@ public class DAELoader extends LoaderBase implements Loader {
     private final List<int []> polygonsPrimitives = new ArrayList<int[]>();
     private final List<List<int []>> polygonsHoles = new ArrayList<List<int[]>>();
     private final Map<String, TransformGroup> nodes = new HashMap<String, TransformGroup>();
+    private final Map<String, String> controllersSkinMeshes = new HashMap<String, String>();
     private final Map<String, SharedGroup> instantiatedNodes = new HashMap<String, SharedGroup>();
     private final Map<String, TransformGroup> visualScenes = new HashMap<String, TransformGroup>();
     private TransformGroup visualScene;
@@ -248,6 +249,7 @@ public class DAELoader extends LoaderBase implements Loader {
     private String  meshSourceId;
     private String  verticesId;
     private String  floatArrayId;
+    private String  controllerId;
     private String  geometryAppearance;
     private int     geometryVertexOffset;
     private int     geometryNormalOffset;
@@ -287,7 +289,7 @@ public class DAELoader extends LoaderBase implements Loader {
         this.materialId = attributes.getValue("id");
         this.materialNames.put(this.materialId, attributes.getValue("name"));
       } else if ("material".equals(parent) && "instance_effect".equals(name)) {
-        String effectInstanceUrl = attributes.getValue("url"); 
+        String effectInstanceUrl = attributes.getValue("url");
         if (effectInstanceUrl.startsWith("#")) {
           final String effectInstanceAnchor = effectInstanceUrl.substring(1);
           this.materialEffects.put(this.materialId, effectInstanceAnchor);
@@ -295,10 +297,10 @@ public class DAELoader extends LoaderBase implements Loader {
       } else if ("effect".equals(name)) {
         this.effectId = attributes.getValue("id");
         this.effectAppearances.put(this.effectId, new Appearance());
-      } else if (this.effectId != null) { 
+      } else if (this.effectId != null) {
         if ("profile_COMMON".equals(parent) && "newparam".equals(name)) {
           this.newParamSid = attributes.getValue("sid");
-        } else if ("newparam".equals(parent) && "surface".equals(name) 
+        } else if ("newparam".equals(parent) && "surface".equals(name)
                    && "2D".equals(attributes.getValue("type"))) {
           this.inSurface2D = true;
         } else if ("extra".equals(parent) && "technique".equals(name)) {
@@ -311,7 +313,7 @@ public class DAELoader extends LoaderBase implements Loader {
           getAppearanceMaterial(this.effectId).setShininess(1);
         } else if ("constant".equals(name)) {
           this.inConstant = true;
-        } else if (this.inConstant || this.inPhongBlinnOrLambert 
+        } else if (this.inConstant || this.inPhongBlinnOrLambert
                    && ("transparent".equals(name))) {
           this.opaque = attributes.getValue("opaque");
           if (this.opaque == null) {
@@ -330,7 +332,7 @@ public class DAELoader extends LoaderBase implements Loader {
       } else if ("geometry".equals(name)) {
         this.geometryId = attributes.getValue("id");
         this.geometries.put(this.geometryId, new ArrayList<Geometry>());
-      } else if (this.geometryId != null) { 
+      } else if (this.geometryId != null) {
         if ("mesh".equals(parent) && "source".equals(name)) {
           this.meshSourceId = attributes.getValue("id");
         } else if ("mesh".equals(parent) && "vertices".equals(name)) {
@@ -341,17 +343,20 @@ public class DAELoader extends LoaderBase implements Loader {
           } else if ("technique_common".equals(parent) && "accessor".equals(name)) {
             String floatArrayAnchor = attributes.getValue("source").substring(1);
             String stride = attributes.getValue("stride");
-            this.sourceAccessorStrides.put(this.floatArrays.get(floatArrayAnchor), 
+            this.sourceAccessorStrides.put(this.floatArrays.get(floatArrayAnchor),
                 stride != null ? Integer.valueOf(stride) : 1);
-          } 
+          }
         } else if (this.verticesId != null && "input".equals(name)) {
           String sourceAnchor = attributes.getValue("source").substring(1);
-          if ("POSITION".equals(attributes.getValue("semantic"))) {
-            this.positions.put(this.verticesId, this.sources.get(sourceAnchor));
-          } else if ("NORMAL".equals(attributes.getValue("semantic"))) {
-            this.normals.put(this.verticesId, this.sources.get(sourceAnchor));
-          } else if ("TEXCOORD".equals(attributes.getValue("semantic"))) {
-            this.textureCoordinates.put(this.verticesId, this.sources.get(sourceAnchor));
+          float [] source = this.sources.get(sourceAnchor);
+          if (source != null) {
+            if ("POSITION".equals(attributes.getValue("semantic"))) {
+              this.positions.put(this.verticesId, source);
+            } else if ("NORMAL".equals(attributes.getValue("semantic"))) {
+              this.normals.put(this.verticesId, source);
+            } else if ("TEXCOORD".equals(attributes.getValue("semantic"))) {
+              this.textureCoordinates.put(this.verticesId, source);
+            }
           }
         } else if (this.verticesId == null && "input".equals(name)) {
           String sourceAnchor = attributes.getValue("source").substring(1);
@@ -390,7 +395,15 @@ public class DAELoader extends LoaderBase implements Loader {
           this.polygonsPrimitives.clear();
           this.polygonsHoles.clear();
           this.vcount = null;
-        } 
+        }
+      } else if ("controller".equals(name)) {
+        this.controllerId = attributes.getValue("id");
+      } else if ("skin".equals(name)) {
+        String skinSource = attributes.getValue("source");
+        if (skinSource.startsWith("#")) {
+          String skinSourceAnchor = skinSource.substring(1);
+          this.controllersSkinMeshes.put(this.controllerId, skinSourceAnchor);
+        }
       } else if ("visual_scene".equals(name)) {
         TransformGroup visualSceneGroup = new TransformGroup();
         this.parentGroups.push(visualSceneGroup);
@@ -407,10 +420,13 @@ public class DAELoader extends LoaderBase implements Loader {
         if (nodeName != null) {
           this.scene.addNamedObject(nodeName, nodeGroup);
         }
-      } else if ("node".equals(parent) && "instance_geometry".equals(name)) {
-        String geometryInstanceUrl = attributes.getValue("url");
-        if (geometryInstanceUrl.startsWith("#")) {
-          final String geometryInstanceAnchor = geometryInstanceUrl.substring(1);
+      } else if ("node".equals(parent)
+                 && ("instance_geometry".equals(name)
+                     || "instance_controller".equals(name))) {
+        String instanceUrl = attributes.getValue("url");
+        if (instanceUrl.startsWith("#")) {
+          final boolean inInstanceController = "instance_controller".equals(name);
+          final String instanceAnchor = instanceUrl.substring(1);
           final String nodeName = attributes.getValue("name");
           final Group parentGroup = new Group();
           this.parentGroups.peek().addChild(parentGroup);
@@ -419,10 +435,13 @@ public class DAELoader extends LoaderBase implements Loader {
               public void run() {
                 int nameSuffix = 0;
                 // Resolve URL at the end of the document
-                for (Geometry geometry : geometries.get(geometryInstanceAnchor)) {
+                List<Geometry> geometriesList = inInstanceController
+                    ? geometries.get(controllersSkinMeshes.get(instanceAnchor))
+                    : geometries.get(instanceAnchor);
+                for (Geometry geometry : geometriesList) {
                   Shape3D shape = new Shape3D(geometry);
                   parentGroup.addChild(shape);
-                  // Give a name to shape 
+                  // Give a name to shape
                   if (nodeName != null) {
                     if (nameSuffix == 0) {
                       scene.addNamedObject(nodeName, shape);
@@ -462,27 +481,34 @@ public class DAELoader extends LoaderBase implements Loader {
           this.postProcessingBinders.add(new Runnable() {
               public void run() {
                 Appearance appearance = effectAppearances.get(materialEffects.get(materialInstanceAnchor));
-                updateShapeAppearance(group, appearance);
+                if (!updateShapeAppearance(group, appearance, false)) {
+                  updateShapeAppearance(group, appearance, true);
+                }
                 try {
                   appearance.setName(materialNames.get(materialInstanceAnchor));
                 } catch (NoSuchMethodError ex) {
                   // Don't set name with Java 3D < 1.4
                 }
               }
-              
-              private void updateShapeAppearance(Node node, Appearance appearance) {
+
+              private boolean updateShapeAppearance(Node node, Appearance appearance, boolean forceUpdate) {
                 if (node instanceof Group) {
+                  boolean updated = false;
                   Enumeration<?> enumeration = ((Group)node).getAllChildren();
                   while (enumeration.hasMoreElements ()) {
-                    updateShapeAppearance((Node)enumeration.nextElement(), appearance);
+                    updated |= updateShapeAppearance((Node)enumeration.nextElement(), appearance, forceUpdate);
                   }
+                  return updated;
                 } else if (node instanceof Link) {
-                  updateShapeAppearance(((Link)node).getSharedGroup(), appearance);
+                  return updateShapeAppearance(((Link)node).getSharedGroup(), appearance, forceUpdate);
                 } else if (node instanceof Shape3D) {
-                  if (materialInstanceSymbol.equals(geometryAppearances.get(((Shape3D)node).getGeometry()))) {
+                  if (forceUpdate
+                      || materialInstanceSymbol.equals(geometryAppearances.get(((Shape3D)node).getGeometry()))) {
                     ((Shape3D)node).setAppearance(appearance);
+                    return true;
                   }
                 }
+                return false;
               }
             });
         }
@@ -500,21 +526,21 @@ public class DAELoader extends LoaderBase implements Loader {
       }
       this.parentElements.push(name);
     }
-    
+
     @Override
     public void characters(char [] ch, int start, int length) throws SAXException {
       this.buffer.append(ch, start, length);
     }
-    
+
     @Override
     public void endElement(String uri, String localName, String name) throws SAXException {
       this.parentElements.pop();
-      String parent = this.parentElements.isEmpty() 
-          ? null 
+      String parent = this.parentElements.isEmpty()
+          ? null
           : this.parentElements.peek();
-      
+
       if ("color".equals(name)
-          || "float_array".equals(name) 
+          || "float_array".equals(name)
           || "matrix".equals(name)
           || "rotate".equals(name)
           || "scale".equals(name)
@@ -537,7 +563,7 @@ public class DAELoader extends LoaderBase implements Loader {
         if (floatCount != floatValues.length) {
           float [] floats = new float [floatCount];
           System.arraycopy(this.floats, 0, floats, 0, floatCount);
-          this.floats = floats;        
+          this.floats = floats;
         }
         if (this.floatArrayId != null) {
           this.floatArrays.put(this.floatArrayId, this.floats);
@@ -557,12 +583,14 @@ public class DAELoader extends LoaderBase implements Loader {
         this.materialId = null;
       } else if ("effect".equals(name)) {
         this.effectId = null;
-      } else if (this.effectId != null) { 
+      } else if (this.effectId != null) {
         handleEffectElementsEnd(name, parent);
       } else if ("geometry".equals(name)) {
         this.geometryId = null;
-      } if (this.geometryId != null) {
+      } else if (this.geometryId != null) {
         handleGeometryElementsEnd(name, parent);
+      } else if ("controller".equals(name)) {
+        this.controllerId = null;
       } else if ("visual_scene".equals(name)
               || "node".equals(name)
               || "node".equals(parent) && "instance_geometry".equals(name)) {
@@ -571,7 +599,7 @@ public class DAELoader extends LoaderBase implements Loader {
         mulTransformGroup(new Transform3D(this.floats));
       } else if ("node".equals(parent) && "rotate".equals(name)) {
         Transform3D rotation = new Transform3D();
-        rotation.setRotation(new AxisAngle4f(this.floats [0], this.floats [1], this.floats [2], 
+        rotation.setRotation(new AxisAngle4f(this.floats [0], this.floats [1], this.floats [2],
             (float)Math.toRadians(floats[3])));
         mulTransformGroup(rotation);
       } else if ("scale".equals(name)) {
@@ -586,12 +614,12 @@ public class DAELoader extends LoaderBase implements Loader {
     }
 
     /**
-     * Returns the trimmed string of last element value. 
+     * Returns the trimmed string of last element value.
      */
     private String getCharacters() {
       return this.buffer.toString().trim();
     }
-    
+
     /**
      * Handles the end tag of elements children of root "asset".
      */
@@ -599,17 +627,17 @@ public class DAELoader extends LoaderBase implements Loader {
       if ("asset".equals(name)) {
         this.inRootAsset = false;
       } else if ("up_axis".equals(name)) {
-        this.axis = getCharacters(); 
+        this.axis = getCharacters();
       } else if ("subject".equals(name)) {
         this.scene.addDescription(getCharacters());
       } else if ("authoring_tool".equals(name)) {
         String tool = getCharacters();
-        // Try to detect if DAE file was created by Google SketchUp version < 7.1 
+        // Try to detect if DAE file was created by Google SketchUp version < 7.1
         if (tool.startsWith("Google SketchUp")) {
           String sketchUpVersion = tool.substring("Google SketchUp".length()).trim();
           if (sketchUpVersion.length() > 0) {
             int dotIndex = sketchUpVersion.indexOf('.');
-            String majorVersionString = dotIndex == -1 
+            String majorVersionString = dotIndex == -1
                 ? sketchUpVersion : sketchUpVersion.substring(0, dotIndex);
             try {
               int majorVersion = Integer.parseInt(majorVersionString);
@@ -618,7 +646,7 @@ public class DAELoader extends LoaderBase implements Loader {
                       && (dotIndex >= sketchUpVersion.length() - 1 // No subversion
                           || sketchUpVersion.charAt(dotIndex + 1) < '1'))) {
                 // From http://www.collada.org/public_forum/viewtopic.php?f=12&t=1667
-                // let's reverse transparency   
+                // let's reverse transparency
                 this.reverseTransparency = true;
               }
             } catch (NumberFormatException ex) {
@@ -643,7 +671,7 @@ public class DAELoader extends LoaderBase implements Loader {
           try {
             textureImage = ImageIO.read(in);
           } catch (ConcurrentModificationException ex) {
-            // Try to read the image once more, 
+            // Try to read the image once more,
             // see unfixed Java bug http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6986863
             in.close();
             in = openStream(textureImageUrl);
@@ -696,13 +724,13 @@ public class DAELoader extends LoaderBase implements Loader {
         }
       } else if ("extra".equals(parent) && "technique".equals(name)) {
         this.techniqueProfile = null;
-      } else if ("phong".equals(name) || "blinn".equals(name) 
+      } else if ("phong".equals(name) || "blinn".equals(name)
                  || "lambert".equals(name) || "constant".equals(name)) {
         float transparencyValue;
         if (this.transparentColor != null) {
           if ("RGB_ZERO".equals(this.opaque)) {
             transparencyValue = this.transparentColor [0] * 0.212671f
-                + this.transparentColor [1] * 0.715160f 
+                + this.transparentColor [1] * 0.715160f
                 + this.transparentColor [2] * 0.072169f;
             if (this.transparency != null) {
               transparencyValue *= this.transparency.floatValue();
@@ -724,17 +752,19 @@ public class DAELoader extends LoaderBase implements Loader {
         if (transparencyValue > 0) {
           appearance.setTransparencyAttributes(new TransparencyAttributes(
               TransparencyAttributes.NICEST, transparencyValue)); // 0 means opaque in Java 3D
-        } else {
-          // Set default color if it doesn't exist yet
-          Color3f black = new Color3f();
-          if (appearance.getMaterial() == null) {
-            appearance.setMaterial(new Material(black, black, black, black, 1));
-            appearance.setColoringAttributes(new ColoringAttributes(black, ColoringAttributes.SHADE_GOURAUD));
-          }
+        }
+        // Set default color if it doesn't exist yet
+        if (appearance.getMaterial() == null
+            && appearance.getColoringAttributes() == null) {
+          Color3f defaultColor = this.transparentColor != null
+              ? new Color3f(this.transparentColor [0], this.transparentColor [1], this.transparentColor [2])
+              : new Color3f();
+          appearance.setMaterial(new Material(defaultColor, new Color3f(), defaultColor, defaultColor, 1));
+          appearance.setColoringAttributes(new ColoringAttributes(defaultColor, ColoringAttributes.SHADE_GOURAUD));
         }
         this.transparentColor = null;
         this.transparency = null;
-        
+
         this.inPhongBlinnOrLambert = false;
         this.inConstant = false;
       } else if (this.inConstant || this.inPhongBlinnOrLambert) {
@@ -770,7 +800,7 @@ public class DAELoader extends LoaderBase implements Loader {
             this.transparency = this.floatValue;
           }
         }
-      } else if ("double_sided".equals(name) 
+      } else if ("double_sided".equals(name)
                  && "1".equals(getCharacters())
                  && ("GOOGLEEARTH".equals(this.techniqueProfile)
                      || "MAX3D".equals(this.techniqueProfile)
@@ -781,7 +811,7 @@ public class DAELoader extends LoaderBase implements Loader {
     }
 
     /**
-     * Returns the material of the appearance at <code>effectId</code>. 
+     * Returns the material of the appearance at <code>effectId</code>.
      */
     private Material getAppearanceMaterial(String effectId) {
       Appearance appearance = this.effectAppearances.get(effectId);
@@ -798,7 +828,10 @@ public class DAELoader extends LoaderBase implements Loader {
      */
     private void handleGeometryElementsEnd(String name, String parent) {
       if ("mesh".equals(parent) && "source".equals(name)) {
-        this.sources.put(this.meshSourceId, this.floats);
+        if (this.floats != null) {
+          this.sources.put(this.meshSourceId, this.floats);
+          this.floats = null;
+        }
         this.meshSourceId = null;
       } else if ("mesh".equals(parent) && "vertices".equals(name)) {
         this.verticesId = null;
@@ -817,12 +850,12 @@ public class DAELoader extends LoaderBase implements Loader {
         if (intCount != intValues.length) {
           int [] ints = new int [intCount];
           System.arraycopy(integers, 0, ints, 0, intCount);
-          integers = ints;        
+          integers = ints;
         }
-        
+
         if (!"ph".equals(parent) && "p".equals(name)) {
           this.facesAndLinesPrimitives.add(integers);
-        } else if ("vcount".equals(name)) { 
+        } else if ("vcount".equals(name)) {
           this.vcount = integers;
         } else if ("ph".equals(parent)) {
           if ("p".equals(name)) {
@@ -832,7 +865,7 @@ public class DAELoader extends LoaderBase implements Loader {
               this.polygonsHoles.add(new ArrayList<int[]>());
             }
             this.polygonsHoles.get(this.polygonsPrimitives.size() - 1).add(integers);
-          } 
+          }
         }
       } else if (("triangles".equals(name)
                   || "trifans".equals(name)
@@ -881,7 +914,7 @@ public class DAELoader extends LoaderBase implements Loader {
       } else {
         primitiveType = GeometryInfo.POLYGON_ARRAY;
       }
-      
+
       GeometryInfo geometryInfo = new GeometryInfo(primitiveType);
       geometryInfo.setCoordinates(this.geometryVertices);
       geometryInfo.setCoordinateIndices(getIndices(this.geometryVertexOffset));
@@ -906,7 +939,7 @@ public class DAELoader extends LoaderBase implements Loader {
         geometryInfo.setTextureCoordinates(0, textureCoordinates);
         geometryInfo.setTextureCoordinateIndices(0, getIndices(this.geometryTextureCoordinatesOffset));
       }
-      
+
       if ("trifans".equals(name)
           || "tristrips".equals(name)) {
         int [] stripCounts = new int [this.facesAndLinesPrimitives.size()];
@@ -921,14 +954,14 @@ public class DAELoader extends LoaderBase implements Loader {
         for (List<int []> polygonHoles : this.polygonsHoles) {
           polygonHolesCount += polygonHoles.size();
         }
-        int [] stripCounts = new int [this.facesAndLinesPrimitives.size() + this.polygonsPrimitives.size() 
+        int [] stripCounts = new int [this.facesAndLinesPrimitives.size() + this.polygonsPrimitives.size()
                                       + polygonHolesCount];
         int [] contourCounts = new int [this.facesAndLinesPrimitives.size() + this.polygonsPrimitives.size()];
         int stripIndex = 0;
         int countourIndex = 0;
         for (int i = 0; i < this.facesAndLinesPrimitives.size(); i++) {
           stripCounts [stripIndex++] = this.facesAndLinesPrimitives.get(i).length / this.inputCount;
-          contourCounts [countourIndex++] = 1; // One polygon 
+          contourCounts [countourIndex++] = 1; // One polygon
         }
         for (int i = 0; i < this.polygonsPrimitives.size(); i++) {
           stripCounts [stripIndex++] = this.polygonsPrimitives.get(i).length / this.inputCount;
@@ -959,7 +992,7 @@ public class DAELoader extends LoaderBase implements Loader {
       if (this.geometryTextureCoordinates != null) {
         format |= IndexedGeometryArray.TEXTURE_COORDINATE_2;
       }
-      
+
       int [] coordinatesIndices = getIndices(this.geometryVertexOffset);
       if (coordinatesIndices.length != 0) {
         IndexedGeometryArray geometry;
@@ -972,7 +1005,7 @@ public class DAELoader extends LoaderBase implements Loader {
           }
           geometry = new IndexedLineStripArray(this.geometryVertices.length / 3, format, coordinatesIndices.length, stripCounts);
         }
-        
+
         geometry.setCoordinates(0, this.geometryVertices);
         geometry.setCoordinateIndices(0, coordinatesIndices);
         if (this.geometryNormals != null) {
@@ -1002,7 +1035,7 @@ public class DAELoader extends LoaderBase implements Loader {
         for (List<int []> polygonHole : this.polygonsHoles) {
           indexCount += getIndexCount(polygonHole);
         }
-        
+
         int [] indices = new int [indexCount / this.inputCount];
         int i = 0;
         for (int [] primitives : this.facesAndLinesPrimitives) {
@@ -1024,9 +1057,9 @@ public class DAELoader extends LoaderBase implements Loader {
         return indices;
       }
     }
-    
+
     /**
-     * Returns the total count of indices among the given <code>faceIndices</code>. 
+     * Returns the total count of indices among the given <code>faceIndices</code>.
      */
     private int getIndexCount(List<int []> faceIndices) {
       int indexCount = 0;
@@ -1035,9 +1068,9 @@ public class DAELoader extends LoaderBase implements Loader {
       }
       return indexCount;
     }
-    
+
     /**
-     * Multiplies the transform at top of the transform groups stack by the 
+     * Multiplies the transform at top of the transform groups stack by the
      * given <code>transformMultiplier</code>.
      */
     private void mulTransformGroup(Transform3D transformMultiplier) {
@@ -1062,7 +1095,7 @@ public class DAELoader extends LoaderBase implements Loader {
             new Point3d(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY),
             new Point3d(Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY));
         computeBounds(this.visualScene, bounds, new Transform3D());
-        
+
         // Translate model to its center
         Point3d lower = new Point3d();
         bounds.getLower(lower);
@@ -1071,9 +1104,9 @@ public class DAELoader extends LoaderBase implements Loader {
           bounds.getUpper(upper);
           Transform3D translation = new Transform3D();
           translation.setTranslation(
-              new Vector3d(-lower.x - (upper.x - lower.x) / 2, 
-                  -lower.y - (upper.y - lower.y) / 2, 
-                  -lower.z - (upper.z - lower.z) / 2));      
+              new Vector3d(-lower.x - (upper.x - lower.x) / 2,
+                  -lower.y - (upper.y - lower.y) / 2,
+                  -lower.z - (upper.z - lower.z) / 2));
           translation.mul(rootTransform);
           rootTransform = translation;
         }
@@ -1099,7 +1132,7 @@ public class DAELoader extends LoaderBase implements Loader {
         sceneRoot.addChild(this.visualScene);
       }
     }
-    
+
     /**
      * Combines the given <code>bounds</code> with the bounds of the given <code>node</code>
      * and its children.

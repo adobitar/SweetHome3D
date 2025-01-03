@@ -1,7 +1,7 @@
 /*
  * HomeFramePane.java 1 sept. 2006
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -75,12 +75,12 @@ public class HomeFramePane extends JRootPane implements View {
   private static final String SCREEN_WIDTH_VISUAL_PROPERTY    = "com.eteks.sweethome3d.SweetHome3D.ScreenWidth";
   private static final String SCREEN_HEIGHT_VISUAL_PROPERTY   = "com.eteks.sweethome3d.SweetHome3D.ScreenHeight";
 
-  private final Home                    home;
-  private final HomeApplication         application;
-  private final ContentManager          contentManager;
-  private final HomeFrameController     controller;
-  private static int                    newHomeCount;
-  private int                           newHomeNumber;
+  private final Home                home;
+  private final HomeApplication     application;
+  private final ContentManager      contentManager;
+  private final HomeFrameController controller;
+  private static int                newHomeCount;
+  private int                       newHomeNumber;
 
   public HomeFramePane(Home home,
                        HomeApplication application,
@@ -103,12 +103,7 @@ public class HomeFramePane extends JRootPane implements View {
    * Builds and shows the frame that displays this pane.
    */
   public void displayView() {
-    final JFrame homeFrame = new JFrame() {
-      {
-        // Replace frame rootPane by home controller view
-        setRootPane(HomeFramePane.this);
-      }
-    };
+    final JFrame homeFrame = new JFrameWithRootPane(this);
     // Update frame image and title
     List<Image> frameImages = new ArrayList<Image>(3);
     frameImages.add(new ImageIcon(HomeFramePane.class.getResource("resources/frameIcon.png")).getImage());
@@ -157,6 +152,19 @@ public class HomeFramePane extends JRootPane implements View {
           homeFrame.toFront();
         }
       });
+  }
+
+  /**
+   * A frame initialized with a customized root pane.
+   */
+  private static class JFrameWithRootPane extends JFrame {
+    public JFrameWithRootPane(JRootPane rootPane) {
+      super.setRootPane(rootPane);
+    }
+
+    public void resetRootPane() {
+      super.setRootPane(new JRootPane());
+    }
   }
 
   /**
@@ -230,21 +238,9 @@ public class HomeFramePane extends JRootPane implements View {
     // Add a listener to preferences to apply component orientation to frame matching current language
     application.getUserPreferences().addPropertyChangeListener(UserPreferences.Property.LANGUAGE,
         new LanguageChangeListener(frame, this));
-    // Dispose window when a home is deleted
-    application.addHomesListener(new CollectionListener<Home>() {
-        public void collectionChanged(CollectionEvent<Home> ev) {
-          if (ev.getItem() == home
-              && ev.getType() == CollectionEvent.Type.DELETE) {
-            application.removeHomesListener(this);
-            frame.dispose();
-            frame.removeWindowListener(windowListener);
-            frame.removeComponentListener(componentListener);
-          }
-        };
-      });
 
     // Update title when the name or the modified state of home changes
-    PropertyChangeListener frameTitleChangeListener = new PropertyChangeListener () {
+    final PropertyChangeListener frameTitleChangeListener = new PropertyChangeListener () {
         public void propertyChange(PropertyChangeEvent ev) {
           updateFrameTitle(frame, home, application);
         }
@@ -253,6 +249,24 @@ public class HomeFramePane extends JRootPane implements View {
     home.addPropertyChangeListener(Home.Property.MODIFIED, frameTitleChangeListener);
     home.addPropertyChangeListener(Home.Property.RECOVERED, frameTitleChangeListener);
     home.addPropertyChangeListener(Home.Property.REPAIRED, frameTitleChangeListener);
+
+    // Dispose window when a home is deleted
+    application.addHomesListener(new CollectionListener<Home>() {
+        public void collectionChanged(CollectionEvent<Home> ev) {
+          if (ev.getItem() == home
+              && ev.getType() == CollectionEvent.Type.DELETE) {
+            application.removeHomesListener(this);
+            frame.removeWindowListener(windowListener);
+            frame.removeComponentListener(componentListener);
+            home.removePropertyChangeListener(Home.Property.NAME, frameTitleChangeListener);
+            home.removePropertyChangeListener(Home.Property.MODIFIED, frameTitleChangeListener);
+            home.removePropertyChangeListener(Home.Property.RECOVERED, frameTitleChangeListener);
+            home.removePropertyChangeListener(Home.Property.REPAIRED, frameTitleChangeListener);
+            frame.dispose();
+            ((JFrameWithRootPane)frame).resetRootPane(); // Help Garbage Collector
+          }
+        };
+      });
   }
 
   /**
@@ -270,14 +284,15 @@ public class HomeFramePane extends JRootPane implements View {
 
     public void propertyChange(PropertyChangeEvent ev) {
       // If frame was garbage collected, remove this listener from preferences
+      JFrame frame = this.frame.get();
       HomeFramePane homeFramePane = this.homeFramePane.get();
       UserPreferences preferences = (UserPreferences)ev.getSource();
-      if (homeFramePane == null) {
+      if (frame == null || homeFramePane == null) {
         preferences.removePropertyChangeListener(
             UserPreferences.Property.LANGUAGE, this);
       } else {
-        this.frame.get().applyComponentOrientation(ComponentOrientation.getOrientation(Locale.getDefault()));
-        homeFramePane.updateFrameTitle(this.frame.get(), homeFramePane.home, homeFramePane.application);
+        frame.applyComponentOrientation(ComponentOrientation.getOrientation(Locale.getDefault()));
+        homeFramePane.updateFrameTitle(frame, homeFramePane.home, homeFramePane.application);
       }
     }
   }
@@ -361,10 +376,6 @@ public class HomeFramePane extends JRootPane implements View {
                 if (!SwingTools.isRectangleVisibleAtScreen(frameBounds)) {
                   frameBounds.setBounds(0, 0, screenSize.width * 4 / 5, screenSize.height * 4 / 5);
                 } else {
-                  System.out
-                      .println(frameBounds);
-                  System.out
-                  .println(frameBounds.getBounds());
                   if (OperatingSystem.isMacOSXLionOrSuperior()) {
                     // Set back frame size later once frame reduce animation is finished
                     new Timer(20, new ActionListener() {

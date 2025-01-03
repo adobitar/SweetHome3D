@@ -1,20 +1,19 @@
-SWEET HOME 3D v 6.4.2
----------------------
+SWEET HOME 3D v 7.5
+-------------------
 
 The current folder contains the required applications and data to run Sweet Home 3D
-under Windows 32 bits, Windows 64 bits, Mac OS X, Linux 32 bits and Linux 64 bits.
+under Windows 32 bits, Windows 64 bits, Linux 32 bits and Linux 64 bits.
 
 To use Sweet Home 3D, simply copy the current folder on a fixed or a removable drive, 
 and run the application matching your operating system:
 - SweetHome3D-windows-x86 for Windows 32 bits
 - SweetHome3D-windows-x64 for Windows 64 bits
-- SweetHome3D-macosx-10.6 for Mac OS X 10.6 and 10.7
-- SweetHome3D-macosx      for Mac OS X 10.8.3 and superior
 - SweetHome3D-linux-x86   for Linux 32 bits
 - SweetHome3D-linux-x64   for Linux 64 bits
 
-This version comes with the 1400 pieces of furniture available at:
+This version comes with the 1610 pieces of furniture and 423 textures available at:
 http://www.sweethome3d.com/freeModels.jsp
+https://www.sweethome3d.com/importTextures.jsp
 and the translations proposed by contributors at:
 http://www.sweethome3d.com/translations.jsp
 Note that some recent pieces of furniture might not be translated in your language.
@@ -30,7 +29,7 @@ Note also that the "data" sub folder matches the default configuration folder us
 by the other versions of Sweet Home 3D (installer, JAR executable file and Java Web 
 Start versions), i.e.:
 - C:\Users\user\AppData\Roaming\eTeks\Sweet Home 3D 
-  folder under Windows Vista / 7 / 8 / 10,
+  folder under Windows Vista / 7 / 8 / 10 / 11,
 - C:\Documents and Settings\user\Application Data\eTeks\Sweet Home 3D 
   folder under Windows XP and previous versions of Windows,
 - Library/Application Support/eTeks/Sweet Home 3D
@@ -49,10 +48,14 @@ placed in the "data/plugins" sub folder.
 
 CAUTION: YOU SHOULD NOT MOVE FILES FOUND IN FOLDERS DIFFERENT FROM THE ONE 
          NAMED "data" OR SWEET HOME 3D MAY NOT WORK. NEVERTHELESS, IF YOU 
-         WANT TO SAVE DISK SPACE, YOU MAY REMOVE THE SUB FOLDERS OF THE "jre" 
-         AND "lib/ext" FOLDERS THAT DON'T MATCH THE OPERATING SYSTEMS YOU NEED.          
+         WANT TO SAVE DISK SPACE, YOU MAY REMOVE THE SUB FOLDERS 
+         OF THE "runtime" FOLDER WHICH DON'T MATCH 
+         THE OPERATING SYSTEMS YOU NEED.          
+
+Note that from version 7.3, macOS support is NOT provided anymore in this portable version
+because recent macOS versions refuse to write in data folder for security reasons
 
 Visit http://www.sweethome3d.com to get more information on Sweet Home 3D
    
-Sweet Home 3D, Copyright (c) 2005-2020 Emmanuel PUYBARET / eTeks 
+Sweet Home 3D, Copyright (c) 2024 Space Mushrooms 
 Distributed under GNU General Public License    

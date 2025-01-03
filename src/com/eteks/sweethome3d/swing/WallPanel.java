@@ -1,7 +1,7 @@
 /*
  * WallPanel.java 29 mai 07
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,8 +95,8 @@ public class WallPanel extends JPanel implements DialogView {
   private JRadioButton         leftSideTextureRadioButton;
   private JComponent           leftSideTextureComponent;
   private JRadioButton         leftSideMattRadioButton;
-  private JButton              leftSideBaseboardButton;
   private JRadioButton         leftSideShinyRadioButton;
+  private JButton              leftSideBaseboardButton;
   private JRadioButton         rightSideColorRadioButton;
   private ColorButton          rightSideColorButton;
   private JRadioButton         rightSideTextureRadioButton;
@@ -286,9 +286,9 @@ public class WallPanel extends JPanel implements DialogView {
         });
 
     this.leftSideColorButton = new ColorButton(preferences);
+    this.leftSideColorButton.setColor(controller.getLeftSideColor());
     this.leftSideColorButton.setColorDialogTitle(preferences.getLocalizedString(
         WallPanel.class, "leftSideColorDialog.title"));
-    this.leftSideColorButton.setColor(controller.getLeftSideColor());
     this.leftSideColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
         new PropertyChangeListener() {
           public void propertyChange(PropertyChangeEvent ev) {

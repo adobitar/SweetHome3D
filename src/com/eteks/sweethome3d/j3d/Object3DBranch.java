@@ -1,7 +1,7 @@
 /*
  * Object3DBranch.java 23 jan. 09
  *
- * Sweet Home 3D, Copyright (c) 2007-2009 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
  */
 package com.eteks.sweethome3d.j3d;
 
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 import java.awt.Shape;
 import java.awt.geom.Area;
 import java.awt.geom.PathIterator;
@@ -31,14 +33,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import javax.media.j3d.Appearance;
 import javax.media.j3d.BranchGroup;
 import javax.media.j3d.ColoringAttributes;
 import javax.media.j3d.LineAttributes;
 import javax.media.j3d.Material;
 import javax.media.j3d.PolygonAttributes;
+import javax.media.j3d.RenderingAttributes;
 import javax.media.j3d.Texture;
 import javax.media.j3d.TextureAttributes;
 import javax.media.j3d.Transform3D;
+import javax.media.j3d.TransparencyAttributes;
 import javax.vecmath.Color3f;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
@@ -46,18 +51,50 @@ import javax.vecmath.Vector3f;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Room;
+import com.eteks.sweethome3d.model.UserPreferences;
+import com.eteks.sweethome3d.tools.OperatingSystem;
 
 /**
  * Root of a branch that matches a home object.
  */
 public abstract class Object3DBranch extends BranchGroup {
-  // The coloring attributes used for drawing outline
+  private static float screenScaleFactor = 1;
+
+  static {
+    try {
+      if (OperatingSystem.isMacOSX()
+          && OperatingSystem.isJavaVersionGreaterOrEqual("1.9")) {
+        // Use a thicker line width for Retina screens
+        GraphicsDevice screenDevice = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+        Number scaleFactor = (Number)screenDevice.getClass().getDeclaredMethod("getScaleFactor").invoke(screenDevice);
+        if (scaleFactor instanceof Number && scaleFactor.floatValue() > 1f) {
+          screenScaleFactor = scaleFactor.floatValue();
+        }
+      }
+    } catch (Exception ex) {
+      // Ignore environments without getScaleFactor
+    }
+  }
+
+  protected static final float LINE_WIDTH_SCALE_FACTOR = screenScaleFactor;
+
+  // The attributes used for drawing outline
   protected static final ColoringAttributes OUTLINE_COLORING_ATTRIBUTES =
       new ColoringAttributes(new Color3f(0.16f, 0.16f, 0.16f), ColoringAttributes.FASTEST);
   protected static final PolygonAttributes OUTLINE_POLYGON_ATTRIBUTES =
       new PolygonAttributes(PolygonAttributes.POLYGON_LINE, PolygonAttributes.CULL_NONE, 0);
   protected static final LineAttributes OUTLINE_LINE_ATTRIBUTES =
-      new LineAttributes(0.5f, LineAttributes.PATTERN_SOLID, true);
+      new LineAttributes(0.5f * LINE_WIDTH_SCALE_FACTOR, LineAttributes.PATTERN_SOLID, true);
+
+  // The attributes used for drawing selection
+  protected static final ColoringAttributes SELECTION_COLORING_ATTRIBUTES =
+      new ColoringAttributes(new Color3f(0, 0, 0.7102f), ColoringAttributes.SHADE_FLAT);
+  protected static final PolygonAttributes  SELECTION_POLYGON_ATTRIBUTES =
+      new PolygonAttributes(PolygonAttributes.POLYGON_LINE, PolygonAttributes.CULL_NONE, 0);
+  protected static final LineAttributes     SELECTION_LINE_ATTRIBUTES =
+      new LineAttributes(LINE_WIDTH_SCALE_FACTOR * 3.5f, LineAttributes.PATTERN_SOLID, true);
+  protected static final TransparencyAttributes SELECTION_TRANSPARENCY_ATTRIBUTES =
+      new TransparencyAttributes(TransparencyAttributes.NICEST, 0.6f);
 
   protected static final Integer  DEFAULT_COLOR         = 0xFFFFFF;
   protected static final Integer  DEFAULT_AMBIENT_COLOR = 0x333333;
@@ -65,12 +102,50 @@ public abstract class Object3DBranch extends BranchGroup {
 
   private static final Map<Long, Material>                materials = new HashMap<Long, Material>();
   private static final Map<TextureKey, TextureAttributes> textureAttributes = new HashMap<TextureKey, TextureAttributes>();
-  private static final Map<Home, Map<Texture, Texture>>   homesTextures = new WeakHashMap<Home, Map<Texture, Texture>>();
+  private static final Map<Object, Map<Texture, Texture>> contextTextures = new WeakHashMap<Object, Map<Texture, Texture>>();
 
   static {
     DEFAULT_MATERIAL.setCapability(Material.ALLOW_COMPONENT_READ);
     DEFAULT_MATERIAL.setShininess(1);
     DEFAULT_MATERIAL.setSpecularColor(0, 0, 0);
+  }
+
+  private final Home home;
+  private final UserPreferences preferences;
+  private final Object context;
+
+  public Object3DBranch() {
+    this.home = null;
+    this.preferences = null;
+    this.context = null;
+  }
+
+  public Object3DBranch(Object item, Home home, UserPreferences preferences, Object context) {
+    this.context = context;
+    setUserData(item);
+    this.home = home;
+    this.preferences = preferences;
+  }
+
+  /**
+   * Returns home instance or <code>null</code>.
+   */
+  public Home getHome() {
+    return this.home;
+  }
+
+  /**
+   * Returns user preferences.
+   */
+  public UserPreferences getUserPreferences() {
+    return this.preferences;
+  }
+
+  /**
+   * Returns the context in which this object is used.
+   */
+  public Object getContext() {
+    return this.context;
   }
 
   /**
@@ -83,20 +158,32 @@ public abstract class Object3DBranch extends BranchGroup {
    * the texture itself if <code>home</code> is <code>null</code>.
    * As sharing textures across universes might cause some problems,
    * it's safer to handle a copy of textures for a given home.
+   * @deprecated Use {@link #getContextTexture(Texture, Object)} which context
+   *    parameter may be equal to different contexts for a given home
    */
   protected Texture getHomeTextureClone(Texture texture, Home home) {
-    if (home == null || texture == null) {
+    return getContextTexture(texture, home);
+  }
+
+  /**
+   * Returns a cloned instance of texture shared per <code>context</code> or
+   * the texture itself if <code>context</code> is <code>null</code>.
+   * As sharing textures across universes might cause some problems,
+   * it's safer to handle a copy of textures for a given context.
+   */
+  protected Texture getContextTexture(Texture texture, Object context) {
+    if (context == null || texture == null) {
       return texture;
     } else {
-      Map<Texture, Texture> homeTextures = homesTextures.get(home);
-      if (homeTextures == null) {
-        homeTextures = new WeakHashMap<Texture, Texture>();
-        homesTextures.put(home, homeTextures);
+      Map<Texture, Texture> contextTextures = Object3DBranch.contextTextures.get(context);
+      if (contextTextures == null) {
+        contextTextures = new WeakHashMap<Texture, Texture>();
+        Object3DBranch.contextTextures.put(context, contextTextures);
       }
-      Texture clonedTexture = homeTextures.get(texture);
+      Texture clonedTexture = contextTextures.get(texture);
       if (clonedTexture == null) {
         clonedTexture = (Texture)texture.cloneNodeComponent(false);
-        homeTextures.put(texture, clonedTexture);
+        contextTextures.put(texture, clonedTexture);
       }
       return clonedTexture;
     }
@@ -189,6 +276,36 @@ public abstract class Object3DBranch extends BranchGroup {
   }
 
   /**
+   * Returns texture attributes with a transformation scaled to fit the surface matching <code>areaPoints</code>.
+   */
+  protected TextureAttributes getTextureAttributesFittingArea(HomeTexture texture, float [][] areaPoints, boolean invertY) {
+    float minX = Float.POSITIVE_INFINITY;
+    float minY = Float.POSITIVE_INFINITY;
+    float maxX = Float.NEGATIVE_INFINITY;
+    float maxY = Float.NEGATIVE_INFINITY;
+    for (int i = 0; i < areaPoints.length; i++) {
+      minX = Math.min(minX, areaPoints [i][0]);
+      minY = Math.min(minY, areaPoints [i][1]);
+      maxX = Math.max(maxX, areaPoints [i][0]);
+      maxY = Math.max(maxY, areaPoints [i][1]);
+    }
+    if (maxX - minX <= 0 || maxY - minY <= 0) {
+      return getTextureAttributes(texture, true);
+    }
+
+    TextureAttributes textureAttributes = new TextureAttributes();
+    textureAttributes.setTextureMode(TextureAttributes.MODULATE);
+    Transform3D translation = new Transform3D();
+    translation.setTranslation(new Vector3f(-minX, invertY ? minY : -minY, 0));
+    Transform3D transform = new Transform3D();
+    transform.setScale(new Vector3d(1 / (maxX - minX),  1 / (maxY - minY), 1));
+    transform.mul(translation);
+    textureAttributes.setTextureTransform(transform);
+    textureAttributes.setCapability(TextureAttributes.ALLOW_TRANSFORM_READ);
+    return textureAttributes;
+  }
+
+  /**
    * Key used to share texture attributes instances.
    */
   private static class TextureKey {
@@ -228,6 +345,22 @@ public abstract class Object3DBranch extends BranchGroup {
           + Float.floatToIntBits(this.angle) * 31
           + Float.floatToIntBits(this.scale);
     }
+  }
+
+  /**
+   * Returns an appearance for selection shapes.
+   */
+  protected Appearance getSelectionAppearance() {
+    Appearance selectionAppearance = new Appearance();
+    selectionAppearance.setColoringAttributes(SELECTION_COLORING_ATTRIBUTES);
+    selectionAppearance.setPolygonAttributes(SELECTION_POLYGON_ATTRIBUTES);
+    selectionAppearance.setLineAttributes(SELECTION_LINE_ATTRIBUTES);
+    selectionAppearance.setTransparencyAttributes(SELECTION_TRANSPARENCY_ATTRIBUTES);
+    RenderingAttributes renderingAttributes = new RenderingAttributes();
+    renderingAttributes.setCapability(RenderingAttributes.ALLOW_VISIBLE_WRITE);
+    selectionAppearance.setRenderingAttributes(renderingAttributes);
+    selectionAppearance.setCapability(Appearance.ALLOW_RENDERING_ATTRIBUTES_READ);
+    return selectionAppearance;
   }
 
   /**

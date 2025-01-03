@@ -1,7 +1,7 @@
 /*
  * FurnitureCatalogListPanel.java 10 janv 2010
  *
- * Sweet Home 3D, Copyright (c) 2010 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,6 +53,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import javax.accessibility.AccessibleRole;
 import javax.swing.AbstractAction;
 import javax.swing.AbstractListModel;
 import javax.swing.DefaultComboBoxModel;
@@ -144,17 +145,22 @@ public class FurnitureCatalogListPanel extends JPanel implements View {
 
         {
           addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent ev) {
-              firstScroll = true;
-              mousePressed = true;
-            }
+              @Override
+              public void mousePressed(MouseEvent ev) {
+                firstScroll = true;
+                mousePressed = true;
+              }
 
-            @Override
-            public void mouseReleased(MouseEvent ev) {
-              mousePressed = false;
-            }
-          });
+              @Override
+              public void mouseReleased(MouseEvent ev) {
+                mousePressed = false;
+              }
+            });
+          this.accessibleContext = new AccessibleAWTComponent() {
+              public AccessibleRole getAccessibleRole() {
+                return AccessibleRole.LIST;
+              }
+            };
         }
 
         @Override

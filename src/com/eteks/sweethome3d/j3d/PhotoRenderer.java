@@ -1,7 +1,7 @@
 /*
  * PhotoRenderer.java 22 janv. 2009
  *
- * Sweet Home 3D, Copyright (c) 2009 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,16 +37,13 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
 import javax.media.j3d.Appearance;
 import javax.media.j3d.BoundingSphere;
-import javax.media.j3d.Bounds;
 import javax.media.j3d.BranchGroup;
 import javax.media.j3d.ColoringAttributes;
 import javax.media.j3d.Geometry;
@@ -81,7 +78,6 @@ import javax.media.j3d.TriangleArray;
 import javax.media.j3d.TriangleFanArray;
 import javax.media.j3d.TriangleStripArray;
 import javax.vecmath.Color3f;
-import javax.vecmath.Matrix4f;
 import javax.vecmath.Point3d;
 import javax.vecmath.Point3f;
 import javax.vecmath.TexCoord2f;
@@ -96,6 +92,7 @@ import org.sunflow.core.ParameterList;
 import org.sunflow.core.ParameterList.InterpolationType;
 import org.sunflow.core.light.SphereLight;
 import org.sunflow.core.light.SunSkyLight;
+import org.sunflow.core.light.TriangleMeshLight;
 import org.sunflow.core.primitive.TriangleMesh;
 import org.sunflow.image.Color;
 import org.sunflow.math.Matrix4;
@@ -123,22 +120,22 @@ import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.viewcontroller.Object3DFactory;
 
 /**
- * A renderer able to create a photo realistic image of a home.
+ * A renderer able to create a photo realistic image of a home based on SunFlow rendering engine.
  * @author Emmanuel Puybaret
- * @author Frédéric Mantegazza (Sun location algorithm)
  */
-public class PhotoRenderer {
-  public enum Quality {LOW, HIGH}
+public class PhotoRenderer extends AbstractPhotoRenderer {
+  /**
+   * @deprecated From version 7.0, prefer use {@link AbstractPhotoRenderer.Quality} enum.
+   */
+  public enum Quality {LOW, HIGH} // Copy of AbstractPhotoRenderer.Quality required for backward compatibility in plug-ins
 
-  private final Home home;
   private final Object3DFactory object3dFactory;
-  private final Quality quality;
-  private final Compass compass;
-  private final int homeLightColor;
 
-  private final SunflowAPI sunflow;
+  private int homeLightColor;
   private boolean useSunSky;
   private boolean useSunskyLight;
+
+  private SunflowAPI sunflow;
   private String  sunSkyLightName;
   private String  sunLightName;
   private final Map<Selectable, String []>         homeItemsNames     = new HashMap<Selectable, String []>();
@@ -151,13 +148,23 @@ public class PhotoRenderer {
     // Use small triangles for better rendering
     TriangleMesh.setSmallTriangles(true);
     PluginRegistry.lightSourcePlugins.registerPlugin("sphere", SphereLightWithNoRepresentation.class);
+    PluginRegistry.lightSourcePlugins.registerPlugin("invisible_triangle_mesh_light", TriangleMeshLightWithNoRepresentation.class); // addition PVR-1.5 (EnkoNyito)
+  }
+
+  /**
+   * Creates an instance ready to render the scene matching the given <code>home</code>.
+   * @throws IOException if texture image files required in the scene couldn't be created.
+   * @deprecated From version 7.0, prefer use the constructor with the parameter of {@link AbstractPhotoRenderer.Quality} type.
+   */
+  public PhotoRenderer(Home home, Quality quality) throws IOException {
+    this(home, AbstractPhotoRenderer.Quality.valueOf(quality.name()));
   }
 
   /**
    * Creates an instance ready to render the scene matching the given <code>home</code>.
    * @throws IOException if texture image files required in the scene couldn't be created.
    */
-  public PhotoRenderer(Home home, Quality quality) throws IOException {
+  public PhotoRenderer(Home home, AbstractPhotoRenderer.Quality quality) throws IOException {
     this(home, new PhotoObject3DFactory(), quality);
   }
 
@@ -167,25 +174,50 @@ public class PhotoRenderer {
    * @param object3dFactory a factory able to create 3D objects from <code>home</code> items.
    *            The {@link Object3DFactory#createObject3D(Home, Selectable, boolean) createObject3D} of
    *            this factory is expected to return an instance of {@link Node} in current implementation.
-   * @throws IOException if texture image files required in the scene couldn't be created.
+   * @deprecated From version 7.0, prefer use the constructor with the parameter of {@link AbstractPhotoRenderer.Quality} type.
    */
   public PhotoRenderer(Home home,
                        Object3DFactory object3dFactory,
                        Quality quality) throws IOException {
-    this.home = home;
-    this.compass = home.getCompass();
-    this.quality = quality;
-    this.sunflow = new SunflowAPI();
+    this(home, object3dFactory, AbstractPhotoRenderer.Quality.valueOf(quality.name()));
+  }
 
-    this.useSunskyLight = !(home.getCamera() instanceof ObserverCamera);
-    boolean silk = isSilkShaderUsed(quality);
-
+  /**
+   * Creates an instance ready to render the scene matching the given <code>home</code>.
+   * @param home the home to render
+   * @param object3dFactory a factory able to create 3D objects from <code>home</code> items.
+   *            The {@link Object3DFactory#createObject3D(Home, Selectable, boolean) createObject3D} of
+   *            this factory is expected to return an instance of {@link Node} in current implementation.
+   */
+  public PhotoRenderer(Home home,
+                       Object3DFactory object3dFactory,
+                       AbstractPhotoRenderer.Quality quality) throws IOException {
+    super(home, quality);
     if (object3dFactory == null) {
       object3dFactory = new PhotoObject3DFactory();
     }
     this.object3dFactory = object3dFactory;
 
+  }
+
+  @Override
+  public String getName() {
+    return "SunFlow";
+  }
+
+  /**
+   * Initializes this rendering engine.
+   * @throws IOException if texture image files required in the scene couldn't be created.
+   */
+  private void init() throws IOException {
+    this.sunflow = new SunflowAPI();
+
+    Home home = getHome();
     HomeEnvironment homeEnvironment = home.getEnvironment();
+    this.homeLightColor = homeEnvironment.getLightColor();
+    this.useSunskyLight = !(home.getCamera() instanceof ObserverCamera);
+    boolean silk = isSilkShaderUsed(getQuality());
+
     float subpartSize = homeEnvironment.getSubpartSizeUnderLight();
     // Dividing walls and rooms surface in subparts is useless
     homeEnvironment.setSubpartSizeUnderLight(0);
@@ -198,9 +230,12 @@ public class PhotoRenderer {
           if (!(piece instanceof HomeFurnitureGroup)) {
             Node node = (Node)object3dFactory.createObject3D(home, piece, true);
             if (node != null) {
-              this.homeItemsNames.put(piece, exportNode(node, false, silk));
               if (piece instanceof HomeLight) {
-                lights.add((HomeLight)piece);
+                HomeLight light = (HomeLight)piece;
+                lights.add(light);
+                this.homeItemsNames.put(piece, exportNode(node, false, silk, light.getPower(), light.getLightSourceMaterialNames()));
+              } else {
+                this.homeItemsNames.put(piece, exportNode(node, false, silk));
               }
             }
           }
@@ -208,11 +243,15 @@ public class PhotoRenderer {
       } else {
         Node node = (Node)object3dFactory.createObject3D(home, item, true);
         if (node != null) {
-          String [] itemNames = exportNode(node, item instanceof Wall || item instanceof Room, silk);
-          this.homeItemsNames.put(item, itemNames);
+          String [] itemNames;
           if (item instanceof HomeLight) {
-            lights.add((HomeLight)item);
+            HomeLight light = (HomeLight)item;
+            lights.add(light);
+            itemNames = exportNode(node, false, silk, light.getPower(), light.getLightSourceMaterialNames());
+          } else {
+            itemNames = exportNode(node, item instanceof Wall || item instanceof Room, silk);
           }
+          this.homeItemsNames.put(item, itemNames);
         }
       }
     }
@@ -237,6 +276,11 @@ public class PhotoRenderer {
       BufferedImage imageBaseLightImage = new BufferedImage(skyImage.getWidth(),
           skyImage.getHeight() * 2, BufferedImage.TYPE_INT_RGB);
       Graphics2D g2D = (Graphics2D)imageBaseLightImage.getGraphics();
+      // Draw mirrored background image at the bottom of imageBaseLightImage to avoid possible line at the horizon
+      AffineTransform mirrorTransform = AffineTransform.getScaleInstance(1, -1);
+      mirrorTransform.translate(skyImage.getWidth() * skyTexture.getXOffset(), -2 * skyImage.getHeight());
+      g2D.drawRenderedImage(skyImage, mirrorTransform);
+      // Draw background image at the top of imageBaseLightImage
       g2D.drawRenderedImage(skyImage, AffineTransform.getTranslateInstance(skyImage.getWidth() * skyTexture.getXOffset(), 0));
       g2D.drawRenderedImage(skyImage, AffineTransform.getTranslateInstance(skyImage.getWidth() * (skyTexture.getXOffset() - 1), 0));
       g2D.dispose();
@@ -256,7 +300,6 @@ public class PhotoRenderer {
 
     // Set light settings
     int ceillingLightColor = homeEnvironment.getCeillingLightColor();
-    this.homeLightColor = homeEnvironment.getLightColor();
     if (ceillingLightColor > 0) {
       // Add lights at the top of each room
       for (Room room : home.getRooms()) {
@@ -315,10 +358,11 @@ public class PhotoRenderer {
     }
 
     final ModelManager modelManager = ModelManager.getInstance();
-    // Add visible and turned on lights
+    // Add visible and turned on light sources
     for (final HomeLight light : lights) {
       Level level = light.getLevel();
       if (light.getPower() > 0f
+          && light.getLightSourceMaterialNames().length == 0
           && (level == null
               || level.isViewableAndVisible())) {
         if (light.isHorizontallyRotated()
@@ -414,92 +458,6 @@ public class PhotoRenderer {
   }
 
   /**
-   * Sets the transformations applied to <code>node</code> children.
-   */
-  private void updateModelTransformations(Node node, Transformation[] transformations) {
-    for (Transformation transformation : transformations) {
-      String transformUserData = transformation.getName() + ModelManager.DEFORMABLE_TRANSFORM_GROUP_SUFFIX;
-      updateTransformation(node, transformUserData, transformation.getMatrix());
-    }
-  }
-
-  /**
-   * Sets the transformation matrix of the children which user data is equal to <code>transformGroupUserData</code>.
-   */
-  private void updateTransformation(Node node, String transformGroupUserData, float[][] matrix) {
-    if (node instanceof Group) {
-      if (node instanceof TransformGroup
-          && transformGroupUserData.equals(node.getUserData())) {
-        Matrix4f transformMatrix = new Matrix4f();
-        transformMatrix.setRow(0, matrix[0]);
-        transformMatrix.setRow(1, matrix[1]);
-        transformMatrix.setRow(2, matrix[2]);
-        transformMatrix.setRow(3, new float [] {0, 0, 0, 1});
-        ((TransformGroup)node).setTransform(new Transform3D(transformMatrix));
-      } else {
-        Enumeration<?> enumeration = ((Group)node).getAllChildren();
-        while (enumeration.hasMoreElements()) {
-          updateTransformation((Node)enumeration.nextElement(), transformGroupUserData, matrix);
-        }
-      }
-    }
-    // No Link parsing
-  }
-
-  /**
-   * Returns <code>true</code> if the <code>node<code> or its children with a user data equal to
-   * <code>transformGroupUserData</code> intersects with <code>lightBounds</code>.
-   */
-  private boolean intersectsDeformedNode(Node node, Bounds lightBounds,
-                                         String transformGroupUserData) {
-    if (node instanceof Group) {
-      if (node instanceof TransformGroup) {
-        if (transformGroupUserData.equals(node.getUserData())
-            && ModelManager.getInstance().getBounds(node).intersect(lightBounds)) {
-          return true;
-        }
-      }
-      Enumeration<?> enumeration = ((Group)node).getAllChildren();
-      while (enumeration.hasMoreElements()) {
-        if (intersectsDeformedNode((Node)enumeration.nextElement(), lightBounds, transformGroupUserData)) {
-          return true;
-        }
-      }
-    }
-    // No Link parsing
-    return false;
-  }
-
-  /**
-   * Returns the transformation applied from <code>node<code> to its child which user data
-   * is equal to <code>transformGroupUserData</code>.
-   */
-  private Transform3D getDeformation(Node node, Transform3D parentTransformation,
-                                     String transformGroupUserData) {
-    if (node instanceof Group) {
-      if (node instanceof TransformGroup) {
-        parentTransformation = new Transform3D(parentTransformation);
-        Transform3D transform = new Transform3D();
-        ((TransformGroup)node).getTransform(transform);
-        parentTransformation.mul(transform);
-        if (transformGroupUserData.equals(node.getUserData())) {
-          return parentTransformation;
-        }
-      }
-      Enumeration<?> enumeration = ((Group)node).getAllChildren();
-      while (enumeration.hasMoreElements()) {
-        Transform3D transform = getDeformation((Node)enumeration.nextElement(), parentTransformation,
-            transformGroupUserData);
-        if (transform != null) {
-          return transform;
-        }
-      }
-    }
-    // No Link parsing
-    return null;
-  }
-
-  /**
    * Renders home in <code>image</code> at the given <code>camera</code> location and image size.
    * The rendered objects of the home are the same ones since last call to render or construction.
    */
@@ -509,7 +467,7 @@ public class PhotoRenderer {
     try {
       render(image, camera, null, observer);
     } catch (IOException ex) {
-      // Exception can't happen, since there's no updated item
+      throw new RuntimeException(ex);
     }
   }
 
@@ -522,10 +480,14 @@ public class PhotoRenderer {
                      Camera camera,
                      List<? extends Selectable> updatedItems,
                      final ImageObserver observer) throws IOException {
+    if (this.sunflow == null) {
+      init();
+    }
+
     this.renderingThread = Thread.currentThread();
 
     if (updatedItems != null) {
-      boolean silk = isSilkShaderUsed(this.quality);
+      boolean silk = isSilkShaderUsed(getQuality());
       for (Selectable item : updatedItems) {
         // Remove from SunFlow updated objects
         String [] itemNames = this.homeItemsNames.get(item);
@@ -535,9 +497,13 @@ public class PhotoRenderer {
           }
         }
 
-        Node node = (Node)this.object3dFactory.createObject3D(home, item, true);
+        Node node = (Node)this.object3dFactory.createObject3D(getHome(), item, true);
         if (node != null) {
-          itemNames = exportNode(node, item instanceof Wall || item instanceof Room, silk);
+          if (item instanceof HomeLight) {
+            itemNames = exportNode(node, false, silk, ((HomeLight)item).getPower(), ((HomeLight)item).getLightSourceMaterialNames());
+          } else {
+            itemNames = exportNode(node, item instanceof Wall || item instanceof Room, silk);
+          }
           this.homeItemsNames.put(item, itemNames);
         }
       }
@@ -553,7 +519,8 @@ public class PhotoRenderer {
     }
     // Possible values: default, path
     String globalIllumination = getRenderingParameterValue("globalIllumination");
-    float [] sunDirection = getSunDirection(this.compass, Camera.convertTimeToTimeZone(camera.getTime(), this.compass.getTimeZone()));
+    Compass compass = getHome().getCompass();
+    float [] sunDirection = getSunDirection(compass, Camera.convertTimeToTimeZone(camera.getTime(), compass.getTimeZone()));
     // Update Sun direction during daytime
     if (sunDirection [1] > -0.075f) {
       if (this.useSunSky) {
@@ -705,44 +672,12 @@ public class PhotoRenderer {
   }
 
   /**
-   * Returns the value of the given rendering parameter.
-   */
-  private String getRenderingParameterValue(String parameterName) {
-    // Try to retrieve overridden parameter value from System property
-    // (for example: System property com.eteks.sweethome3d.j3d.PhotoRenderer.lowQuality.antiAliasing.min)
-    String prefixedParameter = this.quality.name().toLowerCase(Locale.ENGLISH) + "Quality." + parameterName;
-    String baseName = PhotoRenderer.class.getName();
-    String value = System.getProperty(baseName + '.' + prefixedParameter);
-    if (value != null) {
-      return value;
-    } else {
-      // Return default value stored in properties resource file
-      // (for example: property lowQuality.antiAliasing.min
-      //  in com/eteks/sweethome3d/j3d/PhotoRenderer.properties file)
-      return ResourceBundle.getBundle(baseName).getString(prefixedParameter);
-    }
-  }
-
-  /**
-   * Returns sun direction at a given <code>time</code>.
-   * @author Frédéric Mantegazza
-   */
-  private float [] getSunDirection(Compass compass, long time) {
-    float elevation = compass.getSunElevation(time);
-    float azimuth = compass.getSunAzimuth(time);
-    azimuth += compass.getNorthDirection() - Math.PI / 2f;
-    return new float [] {(float)(Math.cos(azimuth) * Math.cos(elevation)),
-                         (float)Math.sin(elevation),
-                         (float)(Math.sin(azimuth) * Math.cos(elevation))};
-  }
-
-  /**
    * Returns <code>true</code> if silk shader should be used.
    */
-  private boolean isSilkShaderUsed(Quality quality) {
+  private boolean isSilkShaderUsed(AbstractPhotoRenderer.Quality quality) {
     // SunFlow produce too much white spots when silk shader is used with sun sky light
     // so use this shader only when observer is used
-    boolean silk = !this.useSunskyLight && quality == Quality.HIGH;
+    boolean silk = !this.useSunskyLight && quality == AbstractPhotoRenderer.Quality.HIGH;
     String shininessShader = getRenderingParameterValue("shininessShader");
     if ("glossy".equals(shininessShader)) {
       silk = false;
@@ -752,13 +687,18 @@ public class PhotoRenderer {
     return silk;
   }
 
+  private String [] exportNode(Node node, boolean ignoreTransparency, boolean silk) throws IOException {
+    return exportNode(node, ignoreTransparency, silk, 0, null);
+  }
+
   /**
    * Exports the given Java 3D <code>node</code> and its children with SunFlow API,
    * then returns the SunFlow names that match this node.
    */
-  private String [] exportNode(Node node, boolean ignoreTransparency, boolean silk) throws IOException {
+  private String [] exportNode(Node node, boolean ignoreTransparency, boolean silk,
+                                float lightPower, String [] lightSourceMaterialNames) throws IOException {
     List<String> nodeNames = new ArrayList<String>();
-    exportNode(node, ignoreTransparency, silk, nodeNames, new Transform3D());
+    exportNode(node, ignoreTransparency, silk, lightPower, lightSourceMaterialNames, nodeNames, new Transform3D());
     return nodeNames.toArray(new String [nodeNames.size()]);
   }
 
@@ -768,6 +708,8 @@ public class PhotoRenderer {
   private void exportNode(Node node,
                           boolean ignoreTransparency,
                           boolean silk,
+                          float lightPower,
+                          String [] lightSourceMaterialNames,
                           List<String> nodeNames,
                           Transform3D parentTransformations) throws IOException {
     if (node instanceof Group) {
@@ -780,10 +722,12 @@ public class PhotoRenderer {
       // Export all children
       Enumeration<?> enumeration = ((Group)node).getAllChildren();
       while (enumeration.hasMoreElements()) {
-        exportNode((Node)enumeration.nextElement(), ignoreTransparency, silk, nodeNames, parentTransformations);
+        exportNode((Node)enumeration.nextElement(), ignoreTransparency, silk, lightPower, lightSourceMaterialNames,
+            nodeNames, parentTransformations);
       }
     } else if (node instanceof Link) {
-      exportNode(((Link)node).getSharedGroup(), ignoreTransparency, silk, nodeNames, parentTransformations);
+      exportNode(((Link)node).getSharedGroup(), ignoreTransparency, silk, lightPower, lightSourceMaterialNames,
+          nodeNames, parentTransformations);
     } else if (node instanceof Shape3D) {
       Shape3D shape = (Shape3D)node;
       Appearance appearance = shape.getAppearance();
@@ -791,11 +735,27 @@ public class PhotoRenderer {
           ? appearance.getRenderingAttributes() : null;
       TransparencyAttributes transparencyAttributes = appearance != null
           ? appearance.getTransparencyAttributes() : null;
+      boolean transparent = transparencyAttributes != null
+          && transparencyAttributes.getTransparency() == 1;
+      boolean lightSourceShape = false;
+      if (lightSourceMaterialNames != null) {
+        for (String lightSourceMaterialName : lightSourceMaterialNames) {
+          try {
+            if (lightSourceMaterialName.equals(appearance.getName())) {
+              lightSourceShape = true;
+              break;
+            }
+          } catch (NoSuchMethodError ex) {
+            // getName not supported with Java 3D < 1.4
+          }
+        }
+      }
+
       // Ignore invisible shapes and fully transparency shapes without a texture
       if ((renderingAttributes == null
               || renderingAttributes.getVisible())
-          && (transparencyAttributes == null
-              || transparencyAttributes.getTransparency() != 1)) {
+          && (!transparent
+              || lightSourceShape)) {
         String shapeName = (String)shape.getUserData();
         // Build a unique object name
         String uuid = UUID.randomUUID().toString();
@@ -805,22 +765,41 @@ public class PhotoRenderer {
         Transform3D textureTransform = new Transform3D();
         int cullFace = PolygonAttributes.CULL_BACK;
         boolean backFaceNormalFlip = false;
+        Color3f lightSourceRadiance = null;
         if (appearance != null) {
           PolygonAttributes polygonAttributes = appearance.getPolygonAttributes();
           if (polygonAttributes != null) {
             cullFace = polygonAttributes.getCullFace();
             backFaceNormalFlip = polygonAttributes.getBackFaceNormalFlip();
           }
-          texCoordGeneration = appearance.getTexCoordGeneration();
-          TextureAttributes textureAttributes = appearance.getTextureAttributes();
-          if (textureAttributes != null) {
-            textureAttributes.getTextureTransform(textureTransform);
+
+          if (lightSourceShape && lightPower > 0) {
+            // Get light source color
+            Material material = appearance.getMaterial();
+            lightSourceRadiance = new Color3f();
+            if (material != null) {
+              material.getDiffuseColor(lightSourceRadiance);
+            } else {
+              ColoringAttributes coloringAttributes = appearance.getColoringAttributes();
+              if (coloringAttributes != null) {
+                coloringAttributes.getColor(lightSourceRadiance);
+              }
+            }
+            lightSourceRadiance.set(32 * lightPower * lightPower * lightSourceRadiance.getX() * (this.homeLightColor >> 16),
+                32 * lightPower * lightPower * lightSourceRadiance.getY() * ((this.homeLightColor >> 8) & 0xFF),
+                32 * lightPower * lightPower * lightSourceRadiance.getZ() * (this.homeLightColor & 0xFF));
+          } else if (!transparent) {
+            texCoordGeneration = appearance.getTexCoordGeneration();
+            TextureAttributes textureAttributes = appearance.getTextureAttributes();
+            if (textureAttributes != null) {
+              textureAttributes.getTextureTransform(textureTransform);
+            }
+            appearanceName = "shader" + uuid;
+            boolean mirror = shapeName != null
+                && shapeName.startsWith(ModelManager.MIRROR_SHAPE_PREFIX);
+            exportAppearance(appearance, appearanceName, mirror, ignoreTransparency, silk);
+            nodeNames.add(appearanceName);
           }
-          appearanceName = "shader" + uuid;
-          boolean mirror = shapeName != null
-              && shapeName.startsWith(ModelManager.MIRROR_SHAPE_PREFIX);
-          exportAppearance(appearance, appearanceName, mirror, ignoreTransparency, silk);
-          nodeNames.add(appearanceName);
         }
 
         // Export object geometries
@@ -828,7 +807,7 @@ public class PhotoRenderer {
           String objectNameBase = "object" + uuid + "-" + i;
           // Always ignore normals on walls
           String [] objectsName = exportNodeGeometry(shape.getGeometry(i), parentTransformations, texCoordGeneration,
-              textureTransform, cullFace, backFaceNormalFlip, objectNameBase);
+              textureTransform, cullFace, backFaceNormalFlip, objectNameBase, appearanceName, transparent, lightSourceRadiance);
           if (objectsName != null) {
             for (String objectName : objectsName) {
               if (appearanceName != null) {
@@ -854,7 +833,10 @@ public class PhotoRenderer {
                                        Transform3D textureTransform,
                                        int cullFace,
                                        boolean backFaceNormalFlip,
-                                       String objectNameBase) {
+                                       String objectNameBase,
+                                       String appearanceName,
+                                       boolean transparent,
+                                       Color3f lightSourceRadiance) {
     if (geometry instanceof GeometryArray) {
       GeometryArray geometryArray = (GeometryArray)geometry;
 
@@ -1198,28 +1180,30 @@ public class PhotoRenderer {
         }
 
         if (line) {
-          String [] objectNames = new String [verticesIndices.length / 2];
-          for (int startIndex = 0; startIndex < verticesIndices.length; startIndex += 2) {
-            String objectName = objectNameBase + "-" + startIndex;
-            objectNames [startIndex / 2] = objectName;
+          if (!transparent) {
+            String [] objectNames = new String [verticesIndices.length / 2];
+            for (int startIndex = 0; startIndex < verticesIndices.length; startIndex += 2) {
+              String objectName = objectNameBase + "-" + startIndex;
+              objectNames [startIndex / 2] = objectName;
 
-            // Get points coordinates of a segment
-            float [] points = new float [6];
-            int pointIndex = 0;
-            for (int i = startIndex; i <= startIndex + 1; i++) {
-              int indirectIndex = verticesIndices [i] * 3;
-              points [pointIndex++] = vertices [indirectIndex++];
-              points [pointIndex++] = vertices [indirectIndex++];
-              points [pointIndex++] = vertices [indirectIndex];
+              // Get points coordinates of a segment
+              float [] points = new float [6];
+              int pointIndex = 0;
+              for (int i = startIndex; i <= startIndex + 1; i++) {
+                int indirectIndex = verticesIndices [i] * 3;
+                points [pointIndex++] = vertices [indirectIndex++];
+                points [pointIndex++] = vertices [indirectIndex++];
+                points [pointIndex++] = vertices [indirectIndex];
+              }
+
+              // Create as many hairs as segments otherwise long hairs become invisible
+              this.sunflow.parameter("segments", 1);
+              this.sunflow.parameter("widths", 0.15f);
+              this.sunflow.parameter("points", "point", "vertex", points);
+              this.sunflow.geometry(objectName, "hair");
             }
-
-            // Create as many hairs as segments otherwise long hairs become invisible
-            this.sunflow.parameter("segments", 1);
-            this.sunflow.parameter("widths", 0.15f);
-            this.sunflow.parameter("points", "point", "vertex", points);
-            this.sunflow.geometry(objectName, "hair");
+            return objectNames;
           }
-          return objectNames;
         } else {
           int exportedTrianglesVertexCount = exportedTriangles.size() * 3;
           if (exportedTrianglesVertexCount < verticesIndices.length) {
@@ -1229,209 +1213,50 @@ public class PhotoRenderer {
             verticesIndices = tmp;
           }
 
-          this.sunflow.parameter("triangles", verticesIndices);
-          this.sunflow.parameter("points", "point", "vertex", vertices);
-          if (normals != null) {
-            // Check there's no NaN values in normals to avoid endless loop in SunFlow
-            boolean noNaN = true;
-            for (float val : normals) {
-              if (Float.isNaN(val)) {
-                noNaN = false;
-                break;
+          if (lightSourceRadiance != null) {
+            this.sunflow.parameter("triangles", verticesIndices);
+            this.sunflow.parameter("points", "point", "vertex", vertices);
+            this.sunflow.parameter("radiance", null,
+                lightSourceRadiance.getX(), lightSourceRadiance.getY(), lightSourceRadiance.getZ());
+            this.sunflow.parameter("samples", 2);
+            this.sunflow.light(objectNameBase, transparent ? "invisible_triangle_mesh_light" : "triangle_mesh");
+            return new String [] {objectNameBase};
+          } else if (!transparent) {
+            this.sunflow.parameter("triangles", verticesIndices);
+            this.sunflow.parameter("points", "point", "vertex", vertices);
+            if (normals != null) {
+              // Check there's no NaN values in normals to avoid endless loop in SunFlow
+              boolean noNaN = true;
+              for (float val : normals) {
+                if (Float.isNaN(val)) {
+                  noNaN = false;
+                  break;
+                }
+              }
+              if (noNaN)  {
+                this.sunflow.parameter("normals", "vector", "vertex", normals);
               }
             }
-            if (noNaN)  {
-              this.sunflow.parameter("normals", "vector", "vertex", normals);
-            }
-          }
-          if (uvs != null) {
-            // Check there's no huge values in uvs to avoid problems in SunFlow
-            boolean noHugeValues = true;
-            for (float val : uvs) {
-              if (Math.abs(val) > 1E9) {
-                noHugeValues = false;
-                break;
+            if (uvs != null) {
+              // Check there's no huge values in uvs to avoid problems in SunFlow
+              boolean noHugeValues = true;
+              for (float val : uvs) {
+                if (Math.abs(val) > 1E9) {
+                  noHugeValues = false;
+                  break;
+                }
+              }
+              if (noHugeValues)  {
+                this.sunflow.parameter("uvs", "texcoord", "vertex", uvs);
               }
             }
-            if (noHugeValues)  {
-              this.sunflow.parameter("uvs", "texcoord", "vertex", uvs);
-            }
+            this.sunflow.geometry(objectNameBase, "triangle_mesh");
+            return new String [] {objectNameBase};
           }
-          this.sunflow.geometry(objectNameBase, "triangle_mesh");
-          return new String [] {objectNameBase};
         }
       }
     }
     return null;
-  }
-
-  /**
-   * Returns texture coordinates generated with <code>texCoordGeneration</code> computed
-   * as described in <code>TexCoordGeneration</code> javadoc.
-   */
-  private TexCoord2f generateTextureCoordinates(float x, float y, float z,
-                                                Vector4f planeS,
-                                                Vector4f planeT) {
-    return new TexCoord2f(x * planeS.x + y * planeS.y + z * planeS.z + planeS.w,
-        x * planeT.x + y * planeT.y + z * planeT.z + planeT.w);
-  }
-
-  /**
-   * Returns the sum of line integers in <code>stripVertexCount</code> array.
-   */
-  private int getLineCount(int [] stripVertexCount) {
-    int lineCount = 0;
-    for (int strip = 0; strip < stripVertexCount.length; strip++) {
-      lineCount += stripVertexCount [strip] - 1;
-    }
-    return lineCount;
-  }
-
-  /**
-   * Returns the sum of triangle integers in <code>stripVertexCount</code> array.
-   */
-  private int getTriangleCount(int [] stripVertexCount) {
-    int triangleCount = 0;
-    for (int strip = 0; strip < stripVertexCount.length; strip++) {
-      triangleCount += stripVertexCount [strip] - 2;
-    }
-    return triangleCount;
-  }
-
-  /**
-   * Applies to <code>vertex</code> the given transformation, and stores it in <code>vertices</code>.
-   */
-  private void exportVertex(Transform3D transformationToParent,
-                            Point3f vertex, int index,
-                            float [] vertices) {
-    transformationToParent.transform(vertex);
-    index *= 3;
-    vertices [index++] = vertex.x;
-    vertices [index++] = vertex.y;
-    vertices [index] = vertex.z;
-  }
-
-  /**
-   * Applies to <code>normal</code> the given transformation, and stores it in <code>normals</code>.
-   */
-  private void exportNormal(Transform3D transformationToParent,
-                            Vector3f normal, int index,
-                            float [] normals,
-                            boolean backFaceNormalFlip) {
-    if (backFaceNormalFlip) {
-      normal.negate();
-    }
-    transformationToParent.transform(normal);
-    int i = index * 3;
-    normals [i++] = normal.x;
-    normals [i++] = normal.y;
-    normals [i] = normal.z;
-  }
-
-  /**
-   * Stores <code>textureCoordinates</code> in <code>uvs</code>.
-   */
-  private void exportTextureCoordinates(TexCoord2f textureCoordinates,
-                                        Transform3D textureTransform,
-                                        int index, float [] uvs) {
-    index *= 2;
-    if (textureTransform.getBestType() != Transform3D.IDENTITY) {
-      Point3f transformedCoordinates = new Point3f(textureCoordinates.x, textureCoordinates.y, 0);
-      textureTransform.transform(transformedCoordinates);
-      uvs [index++] = transformedCoordinates.x;
-      uvs [index] = transformedCoordinates.y;
-    } else {
-      uvs [index++] = textureCoordinates.x;
-      uvs [index] = textureCoordinates.y;
-    }
-  }
-
-  /**
-   * Stores in <code>verticesIndices</code> the indices given at vertexIndex1, vertexIndex2.
-   */
-  private void exportIndexedLine(IndexedGeometryArray geometryArray,
-                                 int vertexIndex1, int vertexIndex2,
-                                 int [] verticesIndices,
-                                 int index) {
-    verticesIndices [index++] = geometryArray.getCoordinateIndex(vertexIndex1);
-    verticesIndices [index] = geometryArray.getCoordinateIndex(vertexIndex2);
-  }
-
-  /**
-   * Stores in <code>verticesIndices</code> the indices given at vertexIndex1, vertexIndex2, vertexIndex3.
-   */
-  private int exportIndexedTriangle(IndexedGeometryArray geometryArray,
-                                    int vertexIndex1, int vertexIndex2, int vertexIndex3,
-                                    int [] verticesIndices, int [] normalsIndices, int [] textureCoordinatesIndices,
-                                    int index,
-                                    float [] vertices,
-                                    Set<Triangle> exportedTriangles,
-                                    int cullFace) {
-    if (cullFace == PolygonAttributes.CULL_FRONT) {
-      // Reverse vertex order
-      int tmp = vertexIndex1;
-      vertexIndex1 = vertexIndex3;
-      vertexIndex3 = tmp;
-    }
-
-    int coordinateIndex1 = geometryArray.getCoordinateIndex(vertexIndex1);
-    int coordinateIndex2 = geometryArray.getCoordinateIndex(vertexIndex2);
-    int coordinateIndex3 = geometryArray.getCoordinateIndex(vertexIndex3);
-    Triangle exportedTriangle = new Triangle(vertices, coordinateIndex1, coordinateIndex2, coordinateIndex3);
-    if (!exportedTriangles.contains(exportedTriangle)) {
-      exportedTriangles.add(exportedTriangle);
-      verticesIndices [index] = coordinateIndex1;
-      verticesIndices [index + 1] = coordinateIndex2;
-      verticesIndices [index + 2] = coordinateIndex3;
-      if (normalsIndices != null) {
-        normalsIndices [index] = geometryArray.getNormalIndex(vertexIndex1);
-        normalsIndices [index + 1] = geometryArray.getNormalIndex(vertexIndex2);
-        normalsIndices [index + 2] = geometryArray.getNormalIndex(vertexIndex3);
-      }
-      if (textureCoordinatesIndices != null) {
-        textureCoordinatesIndices [index] = geometryArray.getTextureCoordinateIndex(0, vertexIndex1);
-        textureCoordinatesIndices [index + 1] = geometryArray.getTextureCoordinateIndex(0, vertexIndex2);
-        textureCoordinatesIndices [index + 2] = geometryArray.getTextureCoordinateIndex(0, vertexIndex3);
-      }
-      return index + 3;
-    }
-    return index;
-  }
-
-  /**
-   * Stores in <code>verticesIndices</code> the indices vertexIndex1 and vertexIndex2.
-   */
-  private void exportLine(GeometryArray geometryArray,
-                          int vertexIndex1, int vertexIndex2,
-                          int [] verticesIndices, int index) {
-    verticesIndices [index++] = vertexIndex1;
-    verticesIndices [index] = vertexIndex2;
-  }
-
-  /**
-   * Stores in <code>verticesIndices</code> the indices vertexIndex1, vertexIndex2, vertexIndex3.
-   */
-  private int exportTriangle(GeometryArray geometryArray,
-                             int vertexIndex1, int vertexIndex2, int vertexIndex3,
-                             int [] verticesIndices, int index,
-                             float [] vertices,
-                             Set<Triangle> exportedTriangles,
-                             int cullFace) {
-    if (cullFace == PolygonAttributes.CULL_FRONT) {
-      // Reverse vertex order
-      int tmp = vertexIndex1;
-      vertexIndex1 = vertexIndex3;
-      vertexIndex3 = tmp;
-    }
-
-    Triangle exportedTriangle = new Triangle(vertices, vertexIndex1, vertexIndex2, vertexIndex3);
-    if (!exportedTriangles.contains(exportedTriangle)) {
-      exportedTriangles.add(exportedTriangle);
-      verticesIndices [index++] = vertexIndex1;
-      verticesIndices [index++] = vertexIndex2;
-      verticesIndices [index++] = vertexIndex3;
-    }
-    return index;
   }
 
   /**
@@ -1570,8 +1395,10 @@ public class PhotoRenderer {
           Color3f color = new Color3f();
           coloringAttributes.getColor(color);
           this.sunflow.parameter("color", null, new float [] {color.x, color.y, color.z});
-          this.sunflow.shader(appearanceName, "constant");
+        } else {
+          this.sunflow.parameter("color", null, new float [] {0, 0, 0});
         }
+        this.sunflow.shader(appearanceName, "constant");
       }
     }
   }
@@ -1587,7 +1414,7 @@ public class PhotoRenderer {
   }
 
   /**
-   * Exports the given light source as SunFlow lights placed at the right location
+   * Exports the given light source as SunFlow light placed at the right location
    * with <code>lightTransform</code>.
    */
   private void exportLightSource(HomeLight light, LightSource lightSource, Transform3D lightTransform) {
@@ -1602,9 +1429,9 @@ public class PhotoRenderer {
     Point3f lightSourceLocation = getNormalizedLightSourceLocation(lightSource);
     lightTransform.transform(lightSourceLocation);
     this.sunflow.parameter("center",
-        new Point3(lightSourceLocation.getX(),
-            lightSourceLocation.getY(),
-            lightSourceLocation.getZ()));
+        new Point3(lightSourceLocation.x,
+            lightSourceLocation.y,
+            lightSourceLocation.z));
     this.sunflow.parameter("radius", lightRadius);
     this.sunflow.parameter("samples", 4);
     this.sunflow.light(UUID.randomUUID().toString(), "sphere");
@@ -1618,25 +1445,6 @@ public class PhotoRenderer {
 
   private Point3f getNormalizedLightSourceLocation(LightSource lightSource) {
     return new Point3f(lightSource.getX() - 0.5f, lightSource.getZ() - 0.5f, 0.5f - lightSource.getY());
-  }
-
-  /**
-   * Default factory for photo creation with no ceiling for rooms when top camera is used.
-   */
-  private static class PhotoObject3DFactory extends Object3DBranchFactory {
-    @Override
-    public boolean isDrawingModeEnabled() {
-      return false;
-    }
-
-    public Object createObject3D(Home home, Selectable item, boolean waitForLoading) {
-      if (item instanceof Room) {
-        // Never display ceiling with top camera
-        return new Room3D((Room)item, home, !(home.getCamera() instanceof ObserverCamera), waitForLoading);
-      } else {
-        return super.createObject3D(home, item, waitForLoading);
-      }
-    }
   }
 
   /**
@@ -1731,77 +1539,13 @@ public class PhotoRenderer {
   }
 
   /**
-   * A triangle used to remove faces cited more that once (opposite faces included).
+   * A SunFlow triangle mesh light with no representation.
    */
-  private static class Triangle {
-    private float [] point1;
-    private float [] point2;
-    private float [] point3;
-    private int      hashCode;
-    private boolean  hashCodeSet;
-
-    public Triangle(float [] vertices, int index1, int index2, int index3) {
-      this.point1 = new float [] {vertices [index1 * 3], vertices [index1 * 3 + 1], vertices [index1 * 3 + 2]};
-      this.point2 = new float [] {vertices [index2 * 3], vertices [index2 * 3 + 1], vertices [index2 * 3 + 2]};
-      this.point3 = new float [] {vertices [index3 * 3], vertices [index3 * 3 + 1], vertices [index3 * 3 + 2]};
-    }
-
-    @Override
-    public int hashCode() {
-      if (!this.hashCodeSet) {
-        this.hashCode = 31 * Arrays.hashCode(this.point1)
-            + 31 * Arrays.hashCode(this.point2)
-            + 31 * Arrays.hashCode(this.point3);
-        this.hashCodeSet = true;
-      }
-      return this.hashCode;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-      if (this == obj) {
-        return true;
-      } else if (obj instanceof Triangle) {
-        Triangle triangle = (Triangle)obj;
-        // Compare first with point with opposite face
-        return Arrays.equals(this.point1, triangle.point3)
-               && Arrays.equals(this.point2, triangle.point2)
-               && Arrays.equals(this.point3, triangle.point1)
-            || Arrays.equals(this.point1, triangle.point2)
-               && Arrays.equals(this.point2, triangle.point1)
-               && Arrays.equals(this.point3, triangle.point3)
-            || Arrays.equals(this.point1, triangle.point1)
-               && Arrays.equals(this.point2, triangle.point3)
-               && Arrays.equals(this.point3, triangle.point2)
-            || Arrays.equals(this.point1, triangle.point1)
-               && Arrays.equals(this.point2, triangle.point2)
-               && Arrays.equals(this.point3, triangle.point3);
-      }
-      return false;
-    }
-  }
-
-  /**
-   * A key used to manage textures at different levels of transparency.
-   */
-  private static class TransparentTextureKey {
-    private Texture texture;
-    private float   transparency;
-
-    public TransparentTextureKey(Texture texture, float transparency) {
-      this.texture = texture;
-      this.transparency = transparency;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-      return ((TransparentTextureKey)obj).texture.equals(this.texture)
-          && ((TransparentTextureKey)obj).transparency == this.transparency;
-    }
-
-    @Override
-    public int hashCode() {
-      return this.texture.hashCode() + Float.floatToIntBits(this.transparency);
+  public static class TriangleMeshLightWithNoRepresentation extends TriangleMeshLight {
+    public Instance createInstance() {
+      return null;
     }
   }
 }
+
+

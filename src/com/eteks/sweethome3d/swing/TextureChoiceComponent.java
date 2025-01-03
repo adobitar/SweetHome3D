@@ -1,7 +1,7 @@
 /*
  * TextureChoiceComponent.java 05 oct. 2007
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,6 +42,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
@@ -64,6 +66,7 @@ import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.Icon;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -214,6 +217,7 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
     private JSpinner                angleSpinner;
     private JLabel                  scaleLabel;
     private JSpinner                scaleSpinner;
+    private JCheckBox               fittingAreaCheckBox;
     private JButton                 importTextureButton;
     private JButton                 modifyTextureButton;
     private JButton                 deleteTextureButton;
@@ -334,27 +338,31 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
               float imageWidth = getImage().getWidth() * getImageScale();
               float imageHeight = getImage().getHeight() * getImageScale();
               g2D.setClip(new Rectangle2D.Float(borderInsets.left, borderInsets.top, componentWidth, componentHeight));
-              g2D.rotate(Math.toRadians(((Number)angleSpinner.getValue()).doubleValue()), getWidth() / 2, getHeight() / 2);
-              // Clip again to ensure repeated image will be drawn in the rectangle (imageWidth, imageHeight)
-              g2D.clip(new Rectangle2D.Float(borderInsets.left + (componentWidth - imageWidth) / 2,
-                  borderInsets.top + (componentHeight - imageHeight) / 2, imageWidth, imageHeight));
-              float xOffset = ((Number)xOffsetSpinner.getValue()).floatValue() / 100f;
-              float yOffset = ((Number)yOffsetSpinner.getValue()).floatValue() / 100f;
-              g2D.translate(xOffset * imageWidth, -yOffset * imageHeight);
-              super.paintComponent(g);
-              // If offsets are different from 0, draw the image again with offsets
-              if (xOffset != 0) {
-                g2D.translate(-imageWidth, 0);
+              if (fittingAreaCheckBox == null || !fittingAreaCheckBox.isSelected()) {
+                g2D.rotate(Math.toRadians(((Number)angleSpinner.getValue()).doubleValue()), getWidth() / 2, getHeight() / 2);
+                // Clip again to ensure repeated image will be drawn in the rectangle (imageWidth, imageHeight)
+                g2D.clip(new Rectangle2D.Float(borderInsets.left + (componentWidth - imageWidth) / 2,
+                    borderInsets.top + (componentHeight - imageHeight) / 2, imageWidth, imageHeight));
+                float xOffset = ((Number)xOffsetSpinner.getValue()).floatValue() / 100f;
+                float yOffset = ((Number)yOffsetSpinner.getValue()).floatValue() / 100f;
+                g2D.translate(xOffset * imageWidth, -yOffset * imageHeight);
                 super.paintComponent(g);
-                g2D.translate(imageWidth, 0);
-              }
-              if (yOffset != 0) {
-                g2D.translate(0, imageHeight);
-                super.paintComponent(g);
+                // If offsets are different from 0, draw the image again with offsets
                 if (xOffset != 0) {
                   g2D.translate(-imageWidth, 0);
                   super.paintComponent(g);
+                  g2D.translate(imageWidth, 0);
                 }
+                if (yOffset != 0) {
+                  g2D.translate(0, imageHeight);
+                  super.paintComponent(g);
+                  if (xOffset != 0) {
+                    g2D.translate(-imageWidth, 0);
+                    super.paintComponent(g);
+                  }
+                }
+              } else {
+                super.paintComponent(g);
               }
             }
             super.paintComponent(g);
@@ -422,6 +430,16 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
         final SpinnerNumberModel scaleSpinnerModel = new SpinnerNumberModel(new Float(100f), new Float(1f), new Float(10000f), new Float(5f));
         this.scaleSpinner = new AutoCommitSpinner(scaleSpinnerModel);
 
+        if (controller.getFitAreaText() != null) {
+          this.fittingAreaCheckBox = new JCheckBox(controller.getFitAreaText());
+          this.fittingAreaCheckBox.addItemListener(new ItemListener() {
+              public void itemStateChanged(ItemEvent ev) {
+                enableComponents(fittingAreaCheckBox.isSelected());
+                texturePreviewComponent.repaint();
+              }
+            });
+        }
+
         this.importTextureButton = new JButton(importTextureButtonText);
         this.importTextureButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ev) {
@@ -457,12 +475,7 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
       int reducedBorderWidth = OperatingSystem.isMacOSXLeopardOrSuperior() ? -8 : -2;
       this.recentTexturesPanel.setBorder(BorderFactory.createCompoundBorder(
           BorderFactory.createEmptyBorder(0, reducedBorderWidth, 0, reducedBorderWidth), this.recentTexturesPanel.getBorder()));
-      preferences.addPropertyChangeListener(UserPreferences.Property.RECENT_TEXTURES,
-          new PropertyChangeListener() {
-            public void propertyChange(PropertyChangeEvent ev) {
-              updateRecentTextures(preferences);
-            }
-          });
+      preferences.addPropertyChangeListener(UserPreferences.Property.RECENT_TEXTURES, new RecentTexturesChangeListener(this));
       updateRecentTextures(preferences);
       this.recentTexturesPanel.setOpaque(false);
 
@@ -475,10 +488,47 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
         this.yOffsetSpinner.setValue(new Float(texture.getYOffset() * 100f));
         this.angleSpinner.setValue(new Float((float)Math.toDegrees(texture.getAngle())));
         this.scaleSpinner.setValue(new Float(texture.getScale() * 100f));
+        if (this.fittingAreaCheckBox != null) {
+          this.fittingAreaCheckBox.setSelected(texture.isFittingArea());
+          enableComponents(texture.isFittingArea());
+        }
       }
       Insets insets = border.getBorderInsets(this.texturePreviewComponent);
       this.texturePreviewComponent.setPreferredSize(
           new Dimension(PREVIEW_ICON_SIZE + insets.left + insets.right, PREVIEW_ICON_SIZE + insets.top + insets.bottom));
+    }
+
+    /**
+     * Enables or disables texture components depending on texture fitting area.
+     */
+    private void enableComponents(boolean textureFittingArea) {
+      this.xOffsetSpinner.setEnabled(!textureFittingArea);
+      this.yOffsetSpinner.setEnabled(!textureFittingArea);
+      this.angleSpinner.setEnabled(!textureFittingArea);
+      this.scaleSpinner.setEnabled(!textureFittingArea);
+    }
+
+    /**
+     * Preferences property listener bound to this component with a weak reference to avoid
+     * strong link between preferences and this component.
+     */
+    private static class RecentTexturesChangeListener implements PropertyChangeListener {
+      private WeakReference<TexturePanel> panel;
+
+      public RecentTexturesChangeListener(TexturePanel panel) {
+        this.panel = new WeakReference<TexturePanel>(panel);
+      }
+
+      public void propertyChange(PropertyChangeEvent ev) {
+        // If panel was garbage collected, remove this listener from preferences
+        TexturePanel panel = this.panel.get();
+        UserPreferences preferences = (UserPreferences)ev.getSource();
+        if (panel == null) {
+          preferences.removePropertyChangeListener(UserPreferences.Property.RECENT_TEXTURES, this);
+        } else {
+          panel.updateRecentTextures(preferences);
+        }
+      }
     }
 
     /**
@@ -737,17 +787,23 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
             GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 0), 0, 0));
       }
       // Seventh row
-      rightPanel.add(new JSeparator(), new GridBagConstraints(
-          2, 6, 2, 1, 0, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 0), 0, 0));
+      if (this.fittingAreaCheckBox != null) {
+        rightPanel.add(this.fittingAreaCheckBox, new GridBagConstraints(
+            2, 6, 2, 1, 0, 1, GridBagConstraints.LINE_START,
+            GridBagConstraints.NONE, new Insets(0, 0, standardGap, 0), 0, 0));
+      }
       // Height row
+      rightPanel.add(new JSeparator(), new GridBagConstraints(
+          2, 7, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.HORIZONTAL, new Insets(0, 0, standardGap, 0), 0, 0));
+      // Last row
       if (this.importTextureButton != null) {
         JPanel buttonsPanel = new JPanel(new GridLayout(3, 1, 2, 2));
         buttonsPanel.add(this.importTextureButton);
         buttonsPanel.add(this.modifyTextureButton);
         buttonsPanel.add(this.deleteTextureButton);
         rightPanel.add(buttonsPanel, new GridBagConstraints(
-            2, 7, 2, 1, 0, 1, GridBagConstraints.NORTH,
+            2, 8, 2, 1, 0, 1, GridBagConstraints.NORTH,
             GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
       }
 
@@ -930,7 +986,12 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
         float yOffset = ((Number)this.yOffsetSpinner.getValue()).floatValue() / 100f;
         float angleInRadians = (float)Math.toRadians(((Number)this.angleSpinner.getValue()).doubleValue());
         float scale = ((Number)this.scaleSpinner.getValue()).floatValue() / 100f;
-        return new HomeTexture(previewTexture, xOffset, yOffset, angleInRadians, scale, true);
+        boolean fittingArea = this.fittingAreaCheckBox != null
+            ? this.fittingAreaCheckBox.isSelected()
+            : (this.controller.getTexture() instanceof HomeTexture
+                  ? this.controller.getTexture().isFittingArea()
+                  : false);
+        return new HomeTexture(previewTexture, xOffset, yOffset, angleInRadians, scale, fittingArea, true);
       }
     }
 
@@ -950,20 +1011,20 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
 
       public void setFilterText(String filterText) {
         this.filterText = filterText;
-        resetFurnitureList();
+        resetTexturesList();
       }
 
       public Object getElementAt(int index) {
-        checkFurnitureList();
+        checkTexturesList();
         return this.textures.get(index);
       }
 
       public int getSize() {
-        checkFurnitureList();
+        checkTexturesList();
         return this.textures.size();
       }
 
-      private void resetFurnitureList() {
+      private void resetTexturesList() {
         if (this.textures != null) {
           this.textures = null;
           EventQueue.invokeLater(new Runnable() {
@@ -974,7 +1035,7 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
         }
       }
 
-      private void checkFurnitureList() {
+      private void checkTexturesList() {
         if (this.textures == null) {
           this.textures = new ArrayList<CatalogTexture>();
           this.textures.clear();
@@ -1006,7 +1067,7 @@ public class TextureChoiceComponent extends JButton implements TextureChoiceView
           if (listModel == null) {
             catalog.removeTexturesListener(this);
           } else {
-            listModel.resetFurnitureList();
+            listModel.resetTexturesList();
           }
         }
       }

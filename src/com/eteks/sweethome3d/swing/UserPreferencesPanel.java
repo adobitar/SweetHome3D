@@ -1,7 +1,7 @@
 /*
  * UserPreferencesPanel.java 18 sept. 2006
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -94,6 +94,8 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
   private JRadioButton     listRadioButton;
   private JLabel           navigationPanelLabel;
   private JCheckBox        navigationPanelCheckBox;
+  private JLabel           editingIn3DViewLabel;
+  private JCheckBox        editingIn3DViewCheckBox;
   private JLabel           aerialViewCenteredOnSelectionLabel;
   private JCheckBox        aerialViewCenteredOnSelectionCheckBox;
   private JLabel           observerCameraSelectedAtChangeLabel;
@@ -221,8 +223,12 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
           UserPreferencesPanel.class, "unitComboBox.meter.text"));
       comboBoxTexts.put(LengthUnit.INCH, preferences.getLocalizedString(
           UserPreferencesPanel.class, "unitComboBox.inch.text"));
+      comboBoxTexts.put(LengthUnit.INCH_FRACTION, preferences.getLocalizedString(
+          UserPreferencesPanel.class, "unitComboBox.inchFraction.text"));
       comboBoxTexts.put(LengthUnit.INCH_DECIMALS, preferences.getLocalizedString(
           UserPreferencesPanel.class, "unitComboBox.inchDecimals.text"));
+      comboBoxTexts.put(LengthUnit.FOOT_DECIMALS, preferences.getLocalizedString(
+          UserPreferencesPanel.class, "unitComboBox.footDecimals.text"));
       this.unitComboBox.setRenderer(new DefaultListCellRenderer() {
           @Override
           public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected,
@@ -383,6 +389,27 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
         // No support for navigation panel under Mac OS X Tiger (too unstable)
         this.navigationPanelCheckBox.setEnabled(false);
       }
+    }
+
+    if (controller.isPropertyEditable(UserPreferencesController.Property.EDITING_IN_3D_VIEW_ENABLED)
+        && !no3D) {
+      // Create editingIn3DViewLabel label and check box bound to controller OBSERVER_CAMERA_SELECTED_AT_CHANGE property
+      this.editingIn3DViewLabel = new JLabel(preferences.getLocalizedString(
+          UserPreferencesPanel.class, "editingIn3DViewLabel.text"));
+      this.editingIn3DViewCheckBox = new JCheckBox(SwingTools.getLocalizedLabelText(preferences,
+          UserPreferencesPanel.class, "editingIn3DViewCheckBox.text"), controller.isEditingIn3DViewEnabled());
+      this.editingIn3DViewCheckBox.addItemListener(new ItemListener() {
+          public void itemStateChanged(ItemEvent ev) {
+            controller.setEditingIn3DViewEnabled(editingIn3DViewCheckBox.isSelected());
+          }
+        });
+      controller.addPropertyChangeListener(UserPreferencesController.Property.EDITING_IN_3D_VIEW_ENABLED,
+          new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent ev) {
+              editingIn3DViewCheckBox.setSelected(controller.isEditingIn3DViewEnabled());
+            }
+
+      });
     }
 
     if (controller.isPropertyEditable(UserPreferencesController.Property.AERIAL_VIEW_CENTERED_ON_SELECTION_ENABLED)
@@ -653,7 +680,7 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
       // Create wall thickness label and spinner bound to controller NEW_WALL_THICKNESS property
       this.newWallThicknessLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
           UserPreferencesPanel.class, "newWallThicknessLabel.text"));
-      final SpinnerLengthModel newWallThicknessSpinnerModel = new SpinnerLengthModel(0.5f, 0.125f, controller);
+      final SpinnerLengthModel newWallThicknessSpinnerModel = new SpinnerLengthModel(LengthUnit.CENTIMETER.getStepSize(), LengthUnit.INCH.getStepSize(), controller);
       this.newWallThicknessSpinner = new AutoCommitLengthSpinner(newWallThicknessSpinnerModel, controller);
       newWallThicknessSpinnerModel.setValue(controller.getNewWallThickness());
       newWallThicknessSpinnerModel.addChangeListener(new ChangeListener() {
@@ -673,7 +700,7 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
       // Create wall height label and spinner bound to controller NEW_WALL_HEIGHT property
       this.newWallHeightLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
           UserPreferencesPanel.class, "newWallHeightLabel.text"));
-      final SpinnerLengthModel newWallHeightSpinnerModel = new SpinnerLengthModel(10f, 2f, controller);
+      final SpinnerLengthModel newWallHeightSpinnerModel = new SpinnerLengthModel(LengthUnit.CENTIMETER.getStepSize() * 20, LengthUnit.INCH.getStepSize() * 16, controller);
       this.newWallHeightSpinner = new AutoCommitLengthSpinner(newWallHeightSpinnerModel, controller);
       newWallHeightSpinnerModel.setValue(controller.getNewWallHeight());
       newWallHeightSpinnerModel.addChangeListener(new ChangeListener() {
@@ -693,7 +720,7 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
       // Create wall thickness label and spinner bound to controller NEW_FLOOR_THICKNESS property
       this.newFloorThicknessLabel = new JLabel(SwingTools.getLocalizedLabelText(preferences,
           UserPreferencesPanel.class, "newFloorThicknessLabel.text"));
-      final SpinnerLengthModel newFloorThicknessSpinnerModel = new SpinnerLengthModel(0.5f, 0.125f, controller);
+      final SpinnerLengthModel newFloorThicknessSpinnerModel = new SpinnerLengthModel(LengthUnit.CENTIMETER.getStepSize(), LengthUnit.INCH.getStepSize(), controller);
       this.newFloorThicknessSpinner = new AutoCommitLengthSpinner(newFloorThicknessSpinnerModel, controller);
       newFloorThicknessSpinnerModel.setValue(controller.getNewFloorThickness());
       newFloorThicknessSpinnerModel.addChangeListener(new ChangeListener() {
@@ -709,7 +736,8 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
           });
     }
 
-    if (controller.isPropertyEditable(UserPreferencesController.Property.CHECK_UPDATES_ENABLED)) {
+    if (controller.isPropertyEditable(UserPreferencesController.Property.CHECK_UPDATES_ENABLED)
+        && Boolean.parseBoolean(System.getProperty("com.eteks.sweethome3d.checkUpdates", "true"))) {
       // Create check box bound to controller CHECK_UPDATES_ENABLED property
       this.checkUpdatesCheckBox = new JCheckBox(SwingTools.getLocalizedLabelText(preferences,
           UserPreferencesPanel.class, "checkUpdatesCheckBox.text"), controller.isCheckUpdatesEnabled());
@@ -908,9 +936,11 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
         this.navigationPanelCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
             UserPreferencesPanel.class, "navigationPanelCheckBox.mnemonic")).getKeyCode());
       }
-      if (this.magnetismLabel != null) {
-        this.magnetismCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
-            UserPreferencesPanel.class, "magnetismCheckBox.mnemonic")).getKeyCode());
+      if (this.editingIn3DViewLabel != null) {
+        String mnemonic = preferences.getLocalizedString(UserPreferencesPanel.class, "editingIn3DViewCheckBox.mnemonic");
+        if (mnemonic.length() > 0) {
+          this.editingIn3DViewCheckBox.setMnemonic(KeyStroke.getKeyStroke(mnemonic).getKeyCode());
+        }
       }
       if (this.aerialViewCenteredOnSelectionLabel != null) {
         this.aerialViewCenteredOnSelectionCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
@@ -921,6 +951,10 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
         if (mnemonic.length() > 0) {
           this.observerCameraSelectedAtChangeCheckBox.setMnemonic(KeyStroke.getKeyStroke(mnemonic).getKeyCode());
         }
+      }
+      if (this.magnetismLabel != null) {
+        this.magnetismCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
+            UserPreferencesPanel.class, "magnetismCheckBox.mnemonic")).getKeyCode());
       }
       if (this.rulersLabel != null) {
         this.rulersCheckBox.setMnemonic(KeyStroke.getKeyStroke(preferences.getLocalizedString(
@@ -1076,50 +1110,62 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
           1, 5, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, checkBoxInsets, 0, 0));
     }
-    if (this.aerialViewCenteredOnSelectionLabel != null) {
+    if (this.editingIn3DViewLabel != null) {
       // Seventh row
-      add(this.aerialViewCenteredOnSelectionLabel, new GridBagConstraints(
+      add(this.editingIn3DViewLabel, new GridBagConstraints(
           0, 6, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, checkBoxLabelInsets, 0, 0));
-      add(this.aerialViewCenteredOnSelectionCheckBox, new GridBagConstraints(
+      add(this.editingIn3DViewCheckBox, new GridBagConstraints(
           1, 6, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, checkBoxInsets, 0, 0));
     }
-    if (this.observerCameraSelectedAtChangeLabel != null) {
+    if (this.aerialViewCenteredOnSelectionLabel != null) {
       // Eighth row
-      add(this.observerCameraSelectedAtChangeLabel, new GridBagConstraints(
+      add(this.aerialViewCenteredOnSelectionLabel, new GridBagConstraints(
           0, 7, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.NONE, checkBoxLabelInsets, 0, 0));
+      add(this.aerialViewCenteredOnSelectionCheckBox, new GridBagConstraints(
+          1, 7, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, checkBoxInsets, 0, 0));
+    }
+    if (this.observerCameraSelectedAtChangeLabel != null) {
+      // Ninth row
+      add(this.observerCameraSelectedAtChangeLabel, new GridBagConstraints(
+          0, 8, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, labelInsetsWithSpace, 0, 0));
       add(this.observerCameraSelectedAtChangeCheckBox, new GridBagConstraints(
-          1, 7, 2, 1, 0, 0, GridBagConstraints.LINE_START,
+          1, 8, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, rightComponentInsetsWithSpace, 0, 0));
     }
     if (this.magnetismLabel != null) {
-      // Ninth row
-      add(this.magnetismLabel, new GridBagConstraints(
-          0, 8, 1, 1, 0, 0, labelAlignment,
-          GridBagConstraints.NONE, checkBoxLabelInsets, 0, 0));
-      add(this.magnetismCheckBox, new GridBagConstraints(
-          1, 8, 2, 1, 0, 0, GridBagConstraints.LINE_START,
-          GridBagConstraints.NONE, checkBoxInsets, 0, 0));
-    }
-    if (this.rulersLabel != null) {
       // Tenth row
-      add(this.rulersLabel, new GridBagConstraints(
+      add(this.magnetismLabel, new GridBagConstraints(
           0, 9, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, checkBoxLabelInsets, 0, 0));
-      add(this.rulersCheckBox, new GridBagConstraints(
+      add(this.magnetismCheckBox, new GridBagConstraints(
           1, 9, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, checkBoxInsets, 0, 0));
     }
-    if (this.gridLabel != null) {
+    if (this.rulersLabel != null) {
       // Eleventh row
-      add(this.gridLabel, new GridBagConstraints(
+      add(this.rulersLabel, new GridBagConstraints(
           0, 10, 1, 1, 0, 0, labelAlignment,
           GridBagConstraints.NONE, checkBoxLabelInsets, 0, 0));
-      add(this.gridCheckBox, new GridBagConstraints(
+      add(this.rulersCheckBox, new GridBagConstraints(
           1, 10, 2, 1, 0, 0, GridBagConstraints.LINE_START,
           GridBagConstraints.NONE, checkBoxInsets, 0, 0));
+    }
+    if (this.gridLabel != null) {
+      JPanel gridPanel = new JPanel(new GridBagLayout());
+      gridPanel.add(this.gridLabel, new GridBagConstraints(
+          0, 0, 1, 1, 0, 0, labelAlignment,
+          GridBagConstraints.NONE, checkBoxLabelInsets, 0, 0));
+      gridPanel.add(this.gridCheckBox, new GridBagConstraints(
+          1, 0, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, checkBoxInsets, 0, 0));
+      add(gridPanel, new GridBagConstraints(
+          2, 10, 1, 1, 0, 0, GridBagConstraints.LINE_START,
+          GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
     }
     if (this.defaultFontNameLabel != null) {
       // Twelfth row
@@ -1297,11 +1343,14 @@ public class UserPreferencesPanel extends JPanel implements DialogView {
     private void updateStepsAndLength(float centimeterStepSize,
                                       float inchStepSize,
                                       UserPreferencesController controller) {
-      if (controller.getUnit() == LengthUnit.INCH
-          || controller.getUnit() == LengthUnit.INCH_DECIMALS) {
-        setStepSize(LengthUnit.inchToCentimeter(inchStepSize));
-      } else {
+      if (controller.getUnit().isMetric()) {
         setStepSize(centimeterStepSize);
+      } else {
+        setStepSize(inchStepSize);
+      }
+      setMinimum(controller.getUnit().getMinimumLength());
+      if (((Number)getMinimum()).floatValue() > ((Number)getValue()).floatValue()) {
+        setValue(getMinimum());
       }
       fireStateChanged();
     }

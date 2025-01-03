@@ -1,7 +1,7 @@
 /*
  * ModelPreviewComponent 16 jan. 2010
  *
- * Sweet Home 3D, Copyright (c) 2007-2010 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,7 +41,10 @@ import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.awt.geom.Point2D;
+import java.awt.image.AreaAveragingScaleFilter;
 import java.awt.image.BufferedImage;
+import java.awt.image.FilteredImageSource;
+import java.awt.image.ImageProducer;
 import java.awt.image.MemoryImageSource;
 import java.io.File;
 import java.io.IOException;
@@ -85,6 +88,7 @@ import javax.swing.event.AncestorListener;
 import javax.swing.event.MouseInputAdapter;
 import javax.vecmath.Color3f;
 import javax.vecmath.Matrix3f;
+import javax.vecmath.Matrix4f;
 import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Point3f;
@@ -98,6 +102,7 @@ import com.eteks.sweethome3d.model.CatalogPieceOfFurniture;
 import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.HomeMaterial;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
+import com.eteks.sweethome3d.model.PieceOfFurniture;
 import com.eteks.sweethome3d.model.Transformation;
 import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.tools.TemporaryURLContent;
@@ -126,6 +131,7 @@ public class ModelPreviewComponent extends JComponent {
   private boolean                 parallelProjection;
   private Object                  iconImageLock;
   private HomePieceOfFurniture    previewedPiece;
+  private HomeMaterial            pickedMaterial;
   private boolean                 internalRotationAndSize;
   private Map<Texture, Texture>   pieceTextures = new HashMap<Texture, Texture>();
 
@@ -348,6 +354,26 @@ public class ModelPreviewComponent extends JComponent {
   }
 
   /**
+   * Returns the canvas 3D instance associated to this component.
+   */
+  private Canvas3D getCanvas3D() {
+    if (this.component3D instanceof Canvas3D) {
+      return (Canvas3D)this.component3D;
+    } else if (this.component3D != null) {
+      try {
+        // Call JCanvas3D#getOffscreenCanvas3D by reflection to be able to run under Java 3D 1.3
+        return (Canvas3D)Class.forName("com.sun.j3d.exp.swing.JCanvas3D").getMethod("getOffscreenCanvas3D").invoke(this.component3D);
+      } catch (Exception ex) {
+        UnsupportedOperationException ex2 = new UnsupportedOperationException();
+        ex2.initCause(ex);
+        throw ex2;
+      }
+    } else {
+      return null;
+    }
+  }
+
+  /**
    * Adds an AWT mouse listener to component that will update view platform transform.
    */
   private void addMouseListeners(final Component component3D,
@@ -368,8 +394,7 @@ public class ModelPreviewComponent extends JComponent {
         private BoundingBox    modelBounds;
 
         private Point getMouseLocation(MouseEvent ev) {
-          if (!OperatingSystem.isMacOSX()
-              && OperatingSystem.isJavaVersionGreaterOrEqual("1.9")) {
+          if (OperatingSystem.isJavaVersionGreaterOrEqual("1.9")) {
             try {
               // Dirty hack that scales mouse coordinates with xcale and yscale private fields of Canvas3D
               Field xscaleField = Canvas3D.class.getDeclaredField("xscale");
@@ -393,23 +418,26 @@ public class ModelPreviewComponent extends JComponent {
           this.pickedTransformGroup = null;
           this.pivotCenterPixel = null;
           this.boundedPitch = true;
-          if (transformationsChangeSupported
-              && getModelNode() != null) {
+          pickedMaterial = null;
+          if (getModelNode() != null) {
             ModelManager modelManager = ModelManager.getInstance();
-            this.boundedPitch = !modelManager.containsDeformableNode(getModelNode());
-            Canvas3D canvas;
-            if (component3D instanceof Canvas3D) {
-              canvas = (Canvas3D)component3D;
-            } else {
-              canvas = ((JCanvas3D)component3D).getOffscreenCanvas3D();
+            if (transformationsChangeSupported) {
+              this.boundedPitch = !modelManager.containsDeformableNode(getModelNode());
             }
+            Canvas3D canvas = getCanvas3D();
             PickCanvas pickCanvas = new PickCanvas(canvas, getModelNode());
             pickCanvas.setMode(PickCanvas.GEOMETRY);
             pickCanvas.setShapeLocation(mouseLocation.x, mouseLocation.y);
             PickResult result = pickCanvas.pickClosest();
             if (result != null) {
+              Shape3D shape = (Shape3D)result.getNode(PickResult.SHAPE3D);
+              HomeMaterial [] materials = modelManager.getMaterials(shape);
+              if (materials.length > 0) {
+                pickedMaterial = materials [0];
+              }
               this.pickedTransformGroup = (TransformGroup)result.getNode(PickResult.TRANSFORM_GROUP);
-              if (this.pickedTransformGroup != null) {
+              if (transformationsChangeSupported
+                  && this.pickedTransformGroup != null) {
                 // The pivot node is the first sibling node which is not a transform group
                 Group group = (Group)this.pickedTransformGroup.getParent();
                 int i = group.indexOfChild(this.pickedTransformGroup) - 1;
@@ -420,7 +448,7 @@ public class ModelPreviewComponent extends JComponent {
                   Node referenceNode = group.getChild(i);
                   Point3f nodeCenter = modelManager.getCenter(referenceNode);
                   Point3f nodeCenterAtScreen = new Point3f(nodeCenter);
-                  Transform3D pivotTransform = getTransformBetweenNodes(referenceNode.getParent(), sceneTree);
+                  Transform3D pivotTransform = getTransformBetweenNodes(referenceNode.getParent(), sceneTree, false);
                   pivotTransform.transform(nodeCenterAtScreen);
                   Transform3D transformToCanvas = new Transform3D();
                   canvas.getVworldToImagePlate(transformToCanvas);
@@ -431,10 +459,6 @@ public class ModelPreviewComponent extends JComponent {
                   String transformationName = (String)this.pickedTransformGroup.getUserData();
                   this.translationFromOrigin = new Transform3D();
                   this.translationFromOrigin.setTranslation(new Vector3d(nodeCenter));
-                  Transform3D transformBetweenNodes = getTransformBetweenNodes(referenceNode.getParent(), getModelNode());
-                  transformBetweenNodes.setTranslation(new Vector3d());
-                  transformBetweenNodes.invert();
-                  this.translationFromOrigin.mul(transformBetweenNodes);
 
                   Transform3D pitchRotation = new Transform3D();
                   pitchRotation.rotX(viewPitch);
@@ -445,7 +469,9 @@ public class ModelPreviewComponent extends JComponent {
                       || transformationName.startsWith(ModelManager.RAIL_PREFIX)) {
                     Transform3D rotation = new Transform3D();
                     Vector3f nodeSize = modelManager.getSize(referenceNode);
-                    getTransformBetweenNodes(getModelRoot(referenceNode), getModelNode()).transform(nodeSize);
+                    BranchGroup modelRoot = getModelRoot(referenceNode);
+                    Transform3D transformBetweenRootAndModelNode = getTransformBetweenNodes(modelRoot, getModelNode(), true);
+                    transformBetweenRootAndModelNode.transform(nodeSize);
                     nodeSize.absolute();
 
                     Transform3D modelRotationAtScreen = new Transform3D(yawRotation);
@@ -470,7 +496,7 @@ public class ModelPreviewComponent extends JComponent {
                       if (transformationName.startsWith(ModelManager.RAIL_PREFIX)
                           ? zAxisAtScreen.x > 0
                           : zAxisAtScreen.z < 0) {
-                      rotation.rotX(Math.PI);
+                        rotation.rotX(Math.PI);
                       }
                     } else {
                       Vector3f xAxisAtScreen = new Vector3f(1, 0, 0);
@@ -483,9 +509,12 @@ public class ModelPreviewComponent extends JComponent {
                         rotation.rotY(Math.PI / 2);
                       }
                     }
+
+                    this.translationFromOrigin.mulInverse(transformBetweenRootAndModelNode);
                     this.translationFromOrigin.mul(rotation);
                   } else {
                     // Set rotation in the screen plan for mannequin or ball handling
+                    this.translationFromOrigin.mulInverse(getTransformBetweenNodes(referenceNode.getParent(), getModelNode(), true));
                     this.translationFromOrigin.mul(yawRotation);
                     this.translationFromOrigin.mul(pitchRotation);
                   }
@@ -500,15 +529,18 @@ public class ModelPreviewComponent extends JComponent {
           }
         }
 
-        private Transform3D getTransformBetweenNodes(Node node, Node parent) {
+        private Transform3D getTransformBetweenNodes(Node node, Node parent, boolean ignoreTranslation) {
           Transform3D transform = new Transform3D();
           if (node instanceof TransformGroup) {
             ((TransformGroup)node).getTransform(transform);
+            if (ignoreTranslation) {
+              transform.setTranslation(new Vector3f());
+            }
           }
           if (node != parent) {
             Node nodeParent = node.getParent();
             if (nodeParent instanceof Group) {
-              transform.mul(getTransformBetweenNodes(nodeParent, parent), transform);
+              transform.mul(getTransformBetweenNodes(nodeParent, parent, ignoreTranslation), transform);
             } else {
               throw new IllegalStateException("Can't retrieve node transform");
             }
@@ -593,7 +625,7 @@ public class ModelPreviewComponent extends JComponent {
                   {matrix [8], matrix [9], matrix [10], matrix [11]}}));
               previewedPiece.setModelTransformations(transformationsList.toArray(new Transformation [transformationsList.size()]));
             } else {
-              if (yawChangeSupported) {
+              if (yawChangeSupported && !ev.isAltDown()) {
                 // Mouse move along X axis changes yaw
                 setViewYaw(getViewYaw() - ANGLE_FACTOR * (mouseLocation.x - this.xLastMouseMove));
               }
@@ -671,19 +703,7 @@ public class ModelPreviewComponent extends JComponent {
    * Creates universe bound to the 3D component.
    */
   private void createUniverse() {
-    Canvas3D canvas3D;
-    if (this.component3D instanceof Canvas3D) {
-      canvas3D = (Canvas3D)this.component3D;
-    } else {
-      try {
-        // Call JCanvas3D#getOffscreenCanvas3D by reflection to be able to run under Java 3D 1.3
-        canvas3D = (Canvas3D)Class.forName("com.sun.j3d.exp.swing.JCanvas3D").getMethod("getOffscreenCanvas3D").invoke(this.component3D);
-      } catch (Exception ex) {
-        UnsupportedOperationException ex2 = new UnsupportedOperationException();
-        ex2.initCause(ex);
-        throw ex2;
-      }
-    }
+    Canvas3D canvas3D = getCanvas3D();
     // Create a universe bound to component 3D
     ViewingPlatform viewingPlatform = new ViewingPlatform();
     Viewer viewer = new Viewer(canvas3D);
@@ -972,6 +992,14 @@ public class ModelPreviewComponent extends JComponent {
    */
   void setModel(final Content model, final boolean backFaceShown, final float [][] modelRotation,
                 final float width, final float depth, final float height) {
+    setModel(model, backFaceShown ? PieceOfFurniture.SHOW_BACK_FACE : 0, modelRotation, width, depth, height);
+  }
+
+  /**
+   * Sets the 3D model content displayed by this component.
+   */
+  void setModel(final Content model, final int modelFlags, final float [][] modelRotation,
+                final float width, final float depth, final float height) {
     final TransformGroup modelTransformGroup = (TransformGroup)this.sceneTree.getChild(0);
     modelTransformGroup.removeAllChildren();
     this.previewedPiece = null;
@@ -989,7 +1017,9 @@ public class ModelPreviewComponent extends JComponent {
                 internalRotationAndSize = modelRotation != null;
                 previewedPiece = new HomePieceOfFurniture(
                     new CatalogPieceOfFurniture(null, null, model,
-                        size.x, size.z, size.y, 0, false, null, modelRotation, backFaceShown, 0, false));
+                        size.x, size.z, size.y,
+                        0, false, null, null,
+                        modelRotation, modelFlags, null, null, 0, 0, 1, false));
                 previewedPiece.setX(0);
                 previewedPiece.setY(0);
                 previewedPiece.setElevation(-previewedPiece.getHeight() / 2);
@@ -999,9 +1029,8 @@ public class ModelPreviewComponent extends JComponent {
                 modelTransformGroup.setTransform(modelTransform);
 
                 HomePieceOfFurniture3D piece3D = new HomePieceOfFurniture3D(previewedPiece, null, true, true);
-                if (OperatingSystem.isMacOSX()) {
-                  cloneTextures(piece3D, pieceTextures);
-                }
+                cloneTextures(piece3D, pieceTextures);
+
                 modelTransformGroup.addChild(piece3D);
               } catch (IllegalArgumentException ex) {
                 // Model is empty
@@ -1025,28 +1054,28 @@ public class ModelPreviewComponent extends JComponent {
    */
   protected void setBackFaceShown(boolean backFaceShown) {
     if (this.previewedPiece != null) {
-      // Create a new piece from the existing one with an updated backFaceShown flag
-      this.previewedPiece = new HomePieceOfFurniture(
-          new CatalogPieceOfFurniture(null, null, this.previewedPiece.getModel(),
-              this.previewedPiece.getWidth(),
-              this.previewedPiece.getDepth(),
-              this.previewedPiece.getHeight(),
-              0, false, this.previewedPiece.getColor(),
-              this.previewedPiece.getModelRotation(), backFaceShown, 0, false));
-      this.previewedPiece.setX(0);
-      this.previewedPiece.setY(0);
-      this.previewedPiece.setElevation(-previewedPiece.getHeight() / 2);
+      setModelFlags((this.previewedPiece.getModelFlags() & ~PieceOfFurniture.SHOW_BACK_FACE)
+          | (backFaceShown ? PieceOfFurniture.SHOW_BACK_FACE : 0));
+    }
+  }
 
-      TransformGroup modelTransformGroup = (TransformGroup)this.sceneTree.getChild(0);
-      HomePieceOfFurniture3D piece3D = new HomePieceOfFurniture3D(previewedPiece, null, true, true);
-      if (OperatingSystem.isMacOSX()) {
-        this.pieceTextures.clear();
-        cloneTextures(piece3D, this.pieceTextures);
-      }
-      modelTransformGroup.addChild(piece3D);
-      if (modelTransformGroup.numChildren() > 1) {
-        modelTransformGroup.removeChild(0);
-      }
+  /**
+   * Sets the visibility of edge color materials of the children nodes of the displayed 3D model.
+   */
+  protected void setEdgeColorMaterialHidden(boolean edgeColorMaterialHidden) {
+    if (this.previewedPiece != null) {
+      setModelFlags((this.previewedPiece.getModelFlags() & ~PieceOfFurniture.HIDE_EDGE_COLOR_MATERIAL)
+          | (edgeColorMaterialHidden ? PieceOfFurniture.HIDE_EDGE_COLOR_MATERIAL : 0));
+    }
+  }
+
+  /**
+   * Sets the model flags of the preview piece.
+   */
+  public void setModelFlags(int modelFlags) {
+    if (this.previewedPiece != null) {
+      this.previewedPiece.setModelFlags(modelFlags);
+      getModelNode().update();
     }
   }
 
@@ -1151,14 +1180,14 @@ public class ModelPreviewComponent extends JComponent {
   /**
    * Sets the transformations applied to 3D model.
    */
-  public void setModelTranformations(Transformation [] transformations) {
+  public void setModelTransformations(Transformation [] transformations) {
     if (this.previewedPiece != null) {
       this.previewedPiece.setModelTransformations(transformations);
       getModelNode().update();
     }
   }
 
-  void resetModelTranformations() {
+  void setPresetModelTransformations(Transformation [] transformations) {
     if (this.previewedPiece != null) {
       ModelManager modelManager = ModelManager.getInstance();
       BoundingBox oldBounds = modelManager.getBounds(getModelNode());
@@ -1167,33 +1196,53 @@ public class ModelPreviewComponent extends JComponent {
       Point3d oldUpper = new Point3d();
       oldBounds.getUpper(oldUpper);
 
-      resetTranformations(getModelNode());
+      setNodeTransformations(getModelNode(), transformations);
 
       BoundingBox newBounds = modelManager.getBounds(getModelNode());
       Point3d newLower = new Point3d();
       newBounds.getLower(newLower);
       Point3d newUpper = new Point3d();
       newBounds.getUpper(newUpper);
-      previewedPiece.setX(previewedPiece.getX() + (float)(newUpper.x + newLower.x) / 2 - (float)(oldUpper.x + oldLower.x) / 2);
-      previewedPiece.setY(previewedPiece.getY() + (float)(newUpper.z + newLower.z) / 2 - (float)(oldUpper.z + oldLower.z) / 2);
-      previewedPiece.setElevation(previewedPiece.getElevation() + (float)(newLower.y - oldLower.y));
+      this.previewedPiece.setX(this.previewedPiece.getX() + (float)(newUpper.x + newLower.x) / 2 - (float)(oldUpper.x + oldLower.x) / 2);
+      this.previewedPiece.setY(this.previewedPiece.getY() + (float)(newUpper.z + newLower.z) / 2 - (float)(oldUpper.z + oldLower.z) / 2);
+      this.previewedPiece.setElevation(this.previewedPiece.getElevation() + (float)(newLower.y - oldLower.y));
       this.previewedPiece.setWidth((float)(newUpper.x - newLower.x));
       this.previewedPiece.setDepth((float)(newUpper.z - newLower.z));
       this.previewedPiece.setHeight((float)(newUpper.y - newLower.y));
-      this.previewedPiece.setModelTransformations(null);
+      this.previewedPiece.setModelTransformations(transformations);
     }
   }
 
-  private void resetTranformations(Node node) {
+  void resetModelTransformations() {
+    setPresetModelTransformations(null);
+  }
+
+  private void setNodeTransformations(Node node, Transformation [] transformations) {
     if (node instanceof Group) {
       if (node instanceof TransformGroup
           && node.getUserData() instanceof String
           && ((String)node.getUserData()).endsWith(ModelManager.DEFORMABLE_TRANSFORM_GROUP_SUFFIX)) {
-        ((TransformGroup)node).setTransform(new Transform3D());
+        TransformGroup transformGroup = (TransformGroup)node;
+        transformGroup.setTransform(new Transform3D());
+        if (transformations != null) {
+          String transformationName = (String)node.getUserData();
+          transformationName = transformationName.substring(0, transformationName.length() - ModelManager.DEFORMABLE_TRANSFORM_GROUP_SUFFIX.length());
+          for (Transformation transformation : transformations) {
+            if (transformationName.equals(transformation.getName())) {
+              float [][] matrix = transformation.getMatrix();
+              Matrix4f transformMatrix = new Matrix4f();
+              transformMatrix.setRow(0, matrix[0]);
+              transformMatrix.setRow(1, matrix[1]);
+              transformMatrix.setRow(2, matrix[2]);
+              transformMatrix.setRow(3, new float [] {0, 0, 0, 1});
+              transformGroup.setTransform(new Transform3D(transformMatrix));
+            }
+          }
+        }
       }
       Enumeration<?> enumeration = ((Group)node).getAllChildren();
       while (enumeration.hasMoreElements()) {
-        resetTranformations((Node)enumeration.nextElement());
+        setNodeTransformations((Node)enumeration.nextElement(), transformations);
       }
     }
   }
@@ -1252,6 +1301,13 @@ public class ModelPreviewComponent extends JComponent {
   }
 
   /**
+   * Returns the material of the shape last picked by the user.
+   */
+  public HomeMaterial getPickedMaterial() {
+    return this.pickedMaterial;
+  }
+
+  /**
    * Replace the textures set on <code>node</code> shapes by clones.
    */
   private void cloneTextures(Node node, Map<Texture, Texture> replacedTextures) {
@@ -1287,32 +1343,32 @@ public class ModelPreviewComponent extends JComponent {
 
     BufferedImage imageWithWhiteBackgound = null;
     BufferedImage imageWithBlackBackgound = null;
-
     this.iconImageLock = new Object();
     try {
-      // Instead of using off screen images that may cause some problems
-      // use Robot to capture canvas 3D image
       Point component3DOrigin = new Point();
       SwingUtilities.convertPointToScreen(component3DOrigin, this.component3D);
 
-      Robot robot = new Robot();
-      // Render scene with a white background
-      if (this.iconImageLock != null) {
+      // Render scene with a white background if it's not the case
+      if (this.iconImageLock != null
+          && !Color.WHITE.equals(backgroundColor)) {
         synchronized (this.iconImageLock) {
           setBackground(Color.WHITE);
           try {
             this.iconImageLock.wait(maxWaitingDelay / 2);
-            if (OperatingSystem.isMacOSX()) {
-              // Under Mac OS X, sleep an additional time to ensure the screen got refreshed
-              Thread.sleep(30);
-            }
           } catch (InterruptedException ex) {
             ex.printStackTrace();
           }
         }
       }
-      imageWithWhiteBackgound = robot.createScreenCapture(
-          new Rectangle(component3DOrigin, this.component3D.getSize()));
+      // Under Linux and Windows, create canvas 3D images from captures shot with Robot
+      // because handling off screen 3D images may cause some crash problems under Linux
+      // and doesn't refresh images correctly in some cases under Windows
+      Component3DManager manager3D = Component3DManager.getInstance();
+      boolean useScreenShot = (OperatingSystem.isLinux() || OperatingSystem.isWindows()) && !Boolean.getBoolean("com.eteks.sweethome3d.j3d.useOffScreen3DView")
+          || !manager3D.isOffScreenImageSupported();
+      imageWithWhiteBackgound = useScreenShot
+          ? new Robot().createScreenCapture(new Rectangle(component3DOrigin, this.component3D.getSize()))
+          : manager3D.getOffScreenImage(getCanvas3D().getView(), this.component3D.getWidth() * 2, this.component3D.getHeight() * 2);
 
       // Render scene with a black background
       if (this.iconImageLock != null) {
@@ -1320,49 +1376,53 @@ public class ModelPreviewComponent extends JComponent {
           setBackground(Color.BLACK);
           try {
             this.iconImageLock.wait(maxWaitingDelay / 2);
-            if (OperatingSystem.isMacOSX()) {
-              // Under Mac OS X, sleep an additional time to ensure the screen got refreshed
-              Thread.sleep(30);
-            }
           } catch (InterruptedException ex) {
             ex.printStackTrace();
           }
         }
       }
-      imageWithBlackBackgound = robot.createScreenCapture(
-          new Rectangle(component3DOrigin, this.component3D.getSize()));
+      imageWithBlackBackgound = useScreenShot
+          ? new Robot().createScreenCapture(new Rectangle(component3DOrigin, this.component3D.getSize()))
+          : manager3D.getOffScreenImage(getCanvas3D().getView(), imageWithWhiteBackgound.getWidth(), imageWithWhiteBackgound.getHeight());
+
+      int [] imageWithWhiteBackgoundPixels = imageWithWhiteBackgound.getRGB(
+          0, 0, imageWithWhiteBackgound.getWidth(), imageWithWhiteBackgound.getHeight(), null,
+          0, imageWithWhiteBackgound.getWidth());
+      int [] imageWithBlackBackgoundPixels = imageWithBlackBackgound.getRGB(
+          0, 0, imageWithBlackBackgound.getWidth(), imageWithBlackBackgound.getHeight(), null,
+          0, imageWithBlackBackgound.getWidth());
+
+      // Create an image with transparent pixels where model isn't drawn
+      for (int i = 0; i < imageWithBlackBackgoundPixels.length; i++) {
+        if (imageWithBlackBackgoundPixels [i] != imageWithWhiteBackgoundPixels [i]
+            && imageWithBlackBackgoundPixels [i] == 0xFF000000
+            && imageWithWhiteBackgoundPixels [i] == 0xFFFFFFFF) {
+          imageWithWhiteBackgoundPixels [i] = 0;
+        }
+      }
+
+      BufferedImage iconImage = new BufferedImage(this.component3D.getWidth(), this.component3D.getHeight(),
+          BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g2D = (Graphics2D)iconImage.getGraphics();
+      ImageProducer imageProducer = new MemoryImageSource(
+          imageWithWhiteBackgound.getWidth(), imageWithWhiteBackgound.getHeight(),
+          imageWithWhiteBackgoundPixels, 0, imageWithWhiteBackgound.getWidth());
+      if (iconImage.getWidth() != imageWithWhiteBackgound.getWidth()
+          || iconImage.getHeight() != imageWithWhiteBackgound.getHeight()) {
+        // Scale image to component size to get smooth transparencies at image borders
+        imageProducer = new FilteredImageSource(imageProducer,
+            new AreaAveragingScaleFilter(iconImage.getWidth(), iconImage.getHeight()));
+      }
+      g2D.drawImage(Toolkit.getDefaultToolkit().createImage(imageProducer), null, null);
+      g2D.dispose();
+
+      return iconImage;
     } catch (AWTException ex) {
       throw new RuntimeException(ex);
     } finally {
       this.iconImageLock = null;
       setBackground(backgroundColor);
     }
-
-    int [] imageWithWhiteBackgoundPixels = imageWithWhiteBackgound.getRGB(
-        0, 0, imageWithWhiteBackgound.getWidth(), imageWithWhiteBackgound.getHeight(), null,
-        0, imageWithWhiteBackgound.getWidth());
-    int [] imageWithBlackBackgoundPixels = imageWithBlackBackgound.getRGB(
-        0, 0, imageWithBlackBackgound.getWidth(), imageWithBlackBackgound.getHeight(), null,
-        0, imageWithBlackBackgound.getWidth());
-
-    // Create an image with transparent pixels where model isn't drawn
-    for (int i = 0; i < imageWithBlackBackgoundPixels.length; i++) {
-      if (imageWithBlackBackgoundPixels [i] != imageWithWhiteBackgoundPixels [i]
-          && imageWithBlackBackgoundPixels [i] == 0xFF000000
-          && imageWithWhiteBackgoundPixels [i] == 0xFFFFFFFF) {
-        imageWithWhiteBackgoundPixels [i] = 0;
-      }
-    }
-
-    BufferedImage iconImage = new BufferedImage(imageWithWhiteBackgound.getWidth(), imageWithWhiteBackgound.getHeight(),
-        BufferedImage.TYPE_INT_ARGB);
-    Graphics2D g2D = (Graphics2D)iconImage.getGraphics();
-    g2D.drawImage(Toolkit.getDefaultToolkit().createImage(new MemoryImageSource(
-        imageWithWhiteBackgound.getWidth(), imageWithWhiteBackgound.getHeight(),
-        imageWithWhiteBackgoundPixels, 0, imageWithWhiteBackgound.getWidth())), null, null);
-    g2D.dispose();
-
-    return iconImage;
   }
 
   /**

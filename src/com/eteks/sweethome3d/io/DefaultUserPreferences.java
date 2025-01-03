@@ -1,7 +1,7 @@
 /*
  * DefaultUserPreferences.java 15 mai 2006
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,6 +88,7 @@ public class DefaultUserPreferences extends UserPreferences {
     // Read other preferences from resource bundle
     setFurnitureCatalogViewedInTree(Boolean.parseBoolean(localizedPreferences.getLocalizedString(DefaultUserPreferences.class, "furnitureCatalogViewedInTree")));
     setNavigationPanelVisible(Boolean.parseBoolean(localizedPreferences.getLocalizedString(DefaultUserPreferences.class, "navigationPanelVisible")));
+    setEditingIn3DViewEnabled(Boolean.parseBoolean(getOptionalLocalizedString(localizedPreferences, "editingIn3DViewEnabled", "false")));
     setAerialViewCenteredOnSelectionEnabled(Boolean.parseBoolean(getOptionalLocalizedString(localizedPreferences, "aerialViewCenteredOnSelectionEnabled", "false")));
     setObserverCameraSelectedAtChange(Boolean.parseBoolean(getOptionalLocalizedString(localizedPreferences, "observerCameraSelectedAtChange", "true")));
     setUnit(LengthUnit.valueOf(localizedPreferences.getLocalizedString(DefaultUserPreferences.class, "unit").toUpperCase(Locale.ENGLISH)));

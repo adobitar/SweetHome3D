@@ -1,7 +1,7 @@
 /*
  * Compass.java 18 mars 2010
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,7 +65,7 @@ public class Compass extends HomeObject implements Selectable {
   /**
    * Creates a compass drawn at the given point.
    * North direction is set to zero, time zone to default
-   * and the latitudeInDegrees and the longitudeInDegrees of this new compass is equal
+   * and the latitude and the longitude of this new compass is equal
    * to the geographic point matching the default time zone.
    */
   public Compass(float x, float y, float diameter) {
@@ -75,7 +75,7 @@ public class Compass extends HomeObject implements Selectable {
   /**
    * Creates a compass drawn at the given point.
    * North direction is set to zero, time zone to default
-   * and the latitudeInDegrees and the longitudeInDegrees of this new compass is equal
+   * and the latitude and the longitude of this new compass is equal
    * to the geographic point matching the default time zone.
    * @since 6.4
    */
@@ -188,14 +188,14 @@ public class Compass extends HomeObject implements Selectable {
   }
 
   /**
-   * Returns the latitudeInDegrees of this compass in radians.
+   * Returns the latitude of this compass in radians.
    */
   public final float getLatitude() {
     return this.latitude;
   }
 
   /**
-   * Sets the latitudeInDegrees of this compass. Once this compass is updated,
+   * Sets the latitude of this compass. Once this compass is updated,
    * listeners added to this compass will receive a change notification.
    */
   public void setLatitude(float latitude) {
@@ -208,14 +208,14 @@ public class Compass extends HomeObject implements Selectable {
   }
 
   /**
-   * Returns the longitudeInDegrees of this compass in radians.
+   * Returns the longitude of this compass in radians.
    */
   public final float getLongitude() {
     return this.longitude;
   }
 
   /**
-   * Sets the longitudeInDegrees of the center of this compass. Once this compass is updated,
+   * Sets the longitude of the center of this compass. Once this compass is updated,
    * listeners added to this compass will receive a change notification.
    */
   public void setLongitude(float longitude) {
@@ -417,8 +417,13 @@ public class Compass extends HomeObject implements Selectable {
    */
   private void initGeographicPoint() {
     Map<String, GeographicPoint> timeZoneGeographicPoints;
-    if (timeZoneGeographicPointsReference == null
-        || timeZoneGeographicPointsReference.get() == null) {
+    if (timeZoneGeographicPointsReference != null) {
+      timeZoneGeographicPoints = timeZoneGeographicPointsReference.get();
+    } else {
+      timeZoneGeographicPoints = null;
+    }
+    
+    if (timeZoneGeographicPoints == null) {
       timeZoneGeographicPoints = new HashMap<String, GeographicPoint>();
       // Default geographic points for Java 6 time zone ids
       // from free data provided by MaxMind WorldCities and Postal Code Databases
@@ -1056,8 +1061,6 @@ public class Compass extends HomeObject implements Selectable {
 
       // Store geographic points in a weak reference because it should be used only to init a new compass
       timeZoneGeographicPointsReference = new WeakReference<Map<String,GeographicPoint>>(timeZoneGeographicPoints);
-    } else {
-      timeZoneGeographicPoints = timeZoneGeographicPointsReference.get();
     }
 
     GeographicPoint point = timeZoneGeographicPoints.get(TimeZone.getDefault().getID());

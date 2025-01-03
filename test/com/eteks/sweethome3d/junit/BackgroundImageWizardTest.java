@@ -1,7 +1,7 @@
 /*
  * BackgroundImageWizardTest.java 22 sept. 2008
  * 
- * Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>. All Rights Reserved.
+ * Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  * 
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -219,10 +219,11 @@ public class BackgroundImageWizardTest extends ComponentTestFixture {
   private void runAction(final HomeController controller, 
                          final HomePane.ActionType actionType,
                          JComponentTester tester) {
-    tester.invokeAndWait(new Runnable() {
-      public void run() {
-        ((JComponent)controller.getView()).getActionMap().get(actionType).actionPerformed(null);
-      }
-    });
+    tester.invokeLater(new Runnable() {
+        public void run() {
+          ((JComponent)controller.getView()).getActionMap().get(actionType).actionPerformed(null);
+        }
+      });
+    tester.waitForIdle();
   }
 }

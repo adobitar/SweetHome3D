@@ -1,7 +1,7 @@
 /*
  * Canvas3DManager.java 25 oct. 07
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -194,6 +194,9 @@ public class Component3DManager {
     if (this.offScreenImageSupported == null) {
       if ("false".equalsIgnoreCase(System.getProperty(CHECK_OFF_SCREEN_IMAGE_SUPPORT, "true"))) {
         this.offScreenImageSupported = Boolean.FALSE;
+      } else if (OperatingSystem.isMacOSX()) {
+        // Avoid testing under macOS where it can lead to deadlocks during getOffScreenImage call with JOGL 2.4
+        this.offScreenImageSupported = Boolean.TRUE;
       } else {
         SimpleUniverse universe = null;
         try {
@@ -503,8 +506,10 @@ public class Component3DManager {
           this.timer = new Timer(100, new ActionListener() {
               public void actionPerformed(ActionEvent ev) {
                 Graphics g = getGraphics();
-                ObservedCanvas3D.super.paint(g);
-                g.dispose();
+                if (g != null) {
+                  ObservedCanvas3D.super.paint(g);
+                  g.dispose();
+                }
               }
             });
           this.timer.setRepeats(false);

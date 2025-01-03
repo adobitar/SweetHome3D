@@ -1,7 +1,7 @@
 /*
  * LabelController.java 29 nov. 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -395,6 +395,16 @@ public class LabelController implements Controller {
   }
 
   /**
+   * Returns a new label instance placed at the given coordinates and added to home.
+   * @since 7.2
+   */
+  protected Label createLabel(String text, float x, float y) {
+    Label label = new Label(text, x, y);
+    this.home.addLabel(label);
+    return label;
+  }
+
+  /**
    * Controls the creation of a label.
    */
   public void createLabel() {
@@ -405,7 +415,7 @@ public class LabelController implements Controller {
       List<Selectable> oldSelection = this.home.getSelectedItems();
       boolean basePlanLocked = this.home.isBasePlanLocked();
       boolean allLevelsSelection = this.home.isAllLevelsSelection();
-      Label label = new Label(text, x, y);
+      Label label = createLabel(text, x, y);
       TextStyle.Alignment alignment = getAlignment();
       String fontName = getFontName();
       Float fontSize = getFontSize();
@@ -433,7 +443,7 @@ public class LabelController implements Controller {
       label.setElevation(getElevation());
       // Unlock base plan if label is a part of it
       boolean newBasePlanLocked = basePlanLocked && !isLabelPartOfBasePlan(label);
-      doAddLabel(this.home, label, newBasePlanLocked);
+      doAddAndSelectLabel(this.home, label, false, newBasePlanLocked);
       if (this.undoSupport != null) {
         UndoableEdit undoableEdit = new LabelCreationUndoableEdit(
             this.home, this.preferences, oldSelection.toArray(new Selectable [oldSelection.size()]),
@@ -485,17 +495,20 @@ public class LabelController implements Controller {
     @Override
     public void redo() throws CannotRedoException {
       super.redo();
-      doAddLabel(this.home, this.label, this.newBasePlanLocked);
+      doAddAndSelectLabel(this.home, this.label, true, this.newBasePlanLocked);
     }
   }
 
   /**
    * Adds label to home and selects it.
    */
-  private static void doAddLabel(Home home,
-                                 Label label,
-                                 boolean basePlanLocked) {
-    home.addLabel(label);
+  private static void doAddAndSelectLabel(Home home,
+                                          Label label,
+                                          boolean addToHome,
+                                          boolean basePlanLocked) {
+    if (addToHome) {
+      home.addLabel(label);
+    }
     home.setBasePlanLocked(basePlanLocked);
     home.setSelectedItems(Arrays.asList(new Selectable [] {label}));
     home.setAllLevelsSelection(false);
@@ -524,6 +537,9 @@ public class LabelController implements Controller {
     List<Label> selectedLabels = Home.getLabelsSubList(oldSelection);
     if (!selectedLabels.isEmpty()) {
       String text = getText();
+      if (text != null && text.trim().length() == 0) {
+        text = null;
+      }
       TextStyle.Alignment alignment = getAlignment();
       String fontName = getFontName();
       boolean fontNameSet = isFontNameSet();
@@ -547,7 +563,7 @@ public class LabelController implements Controller {
             modifiedLabels, text, alignment, fontName, fontNameSet, fontSize, defaultStyle, color, pitch, pitchEnabled, elevation);
         this.undoSupport.postEdit(undoableEdit);
       }
-      if (text.indexOf('\n') < 0) {
+      if (text != null && text.indexOf('\n') < 0) {
         this.preferences.addAutoCompletionString("LabelText", text);
       }
     }

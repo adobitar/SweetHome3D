@@ -1,7 +1,7 @@
 /*
  * WizardPane.java 7 juin 07
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,7 +36,6 @@ import java.beans.PropertyChangeListener;
 import java.net.URL;
 import java.util.Locale;
 
-import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
@@ -234,14 +233,14 @@ public class WizardPane extends JOptionPane implements DialogView {
 
       final Color gradientColor1 = backgroundColor1;
       final Color gradientColor2 = backgroundColor2;
-      JLabel iconLabel = new JLabel(new ImageIcon(stepIcon)) {
+      JLabel iconLabel = new JLabel(SwingTools.getScaledImageIcon(stepIcon)) {
           @Override
           protected void paintComponent(Graphics g) {
             Graphics2D g2D = (Graphics2D)g;
              // Paint a blue gradient behind icon
             g2D.setPaint(new GradientPaint(0, 0, gradientColor1,
                                            0, getHeight(), gradientColor2));
-            g.fillRect(0, 0, getWidth(), getHeight());
+            g.fillRect(0, 0, getWidth() - 1, getHeight() - 1);
             super.paintComponent(g);
           }
         };

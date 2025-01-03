@@ -1,7 +1,7 @@
 /*
  * ModelMaterialsController.java 26 oct. 2012
  *
- * Sweet Home 3D, Copyright (c) 2012 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ import java.util.Arrays;
 
 import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.HomeMaterial;
+import com.eteks.sweethome3d.model.PieceOfFurniture;
 import com.eteks.sweethome3d.model.Transformation;
 import com.eteks.sweethome3d.model.UserPreferences;
 
@@ -52,7 +53,7 @@ public class ModelMaterialsController implements Controller {
   private float                       modelHeight;
   private float [][]                  modelRotation;
   private Transformation []           modelTransformations;
-  private boolean                     backFaceShown;
+  private int                         modelFlags;
   private HomeMaterial []             materials;
 
   public ModelMaterialsController(String title,
@@ -184,16 +185,34 @@ public class ModelMaterialsController implements Controller {
 
   /**
    * Sets whether the 3D model used to preview materials change should show back face.
+   * @deprecated Prefer use {@link #setModelFlags} with {@link PieceOfFurniture#SHOW_BACK_FACE} flag.
    */
   void setBackFaceShown(boolean backFaceShown) {
-    this.backFaceShown = backFaceShown;
+    setModelFlags((getModelFlags() & ~PieceOfFurniture.SHOW_BACK_FACE)
+        | (backFaceShown ? PieceOfFurniture.SHOW_BACK_FACE : 0));
   }
 
   /**
    * Returns <code>true</code> if the 3D model used to preview materials change should show back face.
    */
   public boolean isBackFaceShown() {
-    return this.backFaceShown;
+    return (this.modelFlags & PieceOfFurniture.SHOW_BACK_FACE) == PieceOfFurniture.SHOW_BACK_FACE;
+  }
+
+  /**
+   * Sets the flags applied to the 3D model used to preview materials change.
+   * @since 7.0
+   */
+  public void setModelFlags(int modelFlags) {
+    this.modelFlags = modelFlags;
+  }
+
+  /**
+   * Returns the flags applied to the 3D model used to preview materials change.
+   * @since 7.0
+   */
+  public int getModelFlags() {
+    return this.modelFlags;
   }
 
   /**
@@ -226,8 +245,7 @@ public class ModelMaterialsController implements Controller {
    */
   public TextureChoiceController getTextureController() {
     // Create sub controller lazily only once it's needed
-    if (this.textureController == null
-        && this.contentManager != null) {
+    if (this.textureController == null) {
       this.textureController = new TextureChoiceController(
           this.preferences.getLocalizedString(ModelMaterialsController.class, "textureTitle"),
           this.preferences, this.viewFactory, this.contentManager);
