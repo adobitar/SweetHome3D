@@ -1,3 +1,39 @@
+Sweet Home 3D (tweaked)
+------------------------
+I wanted a few keys to make my use much faster:
+- S - enters select mode
+- W - enters wall creation
+- R - enters room creation
+- D - enters demension creation
+- J - joins selected walls
+- K - splits selected wall
+- F - flips the currently selected object horizontally
+- Shift+F - flips the currently selected object vertically
+
+In the process I also dockerized the build.  To build the app from source, first install 
+Docker and Node.
+
+Add node to your project by running "npm install" from the root of your project.
+
+Next, run "npm run docker:build" - this will create your docker container from the Dockerfile.
+
+Finally, run "npm run app:build" which will copy your source to the docker container and
+run ant to build the SweetHome3d.jar file.  All build artifacts will get copied to /build
+in your project.  
+
+You can run your custom build using java -jar build/SweetHome3d.7.5.jar (or whatever your
+version/filename is).  Alternatively, if you don't want to install java, you could use
+javaw.exe from the runtime/bin folder of your original SweetHome3D install.
+
+If you want to change shortcuts, most of them are pretty easy to find and update in
+src/com/eteks/sweethome3d/swing/package.properties resources file. 
+"Simply change the values of the keys named AcceleratorKey" as kindly suggested by @Puybaret
+https://sweethome3d.com/support/forum/viewthread_thread,3249
+
+====================================================
+The following is from the official SourceForge repo.
+====================================================
+
 SWEET HOME 3D v 7.5
 -------------------
 
