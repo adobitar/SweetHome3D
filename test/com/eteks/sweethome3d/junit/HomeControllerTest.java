@@ -1,8 +1,7 @@
 /*
  * HomeControllerTest.java 15 mai 2006
  *
- * Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>. All Rights
- * Reserved.
+ * Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -323,10 +322,10 @@ public class HomeControllerTest extends TestCase {
         piece.getWidth(), piece.getDepth(), piece.getHeight(), piece.getY(), piece.isVisible());
 
     // 5. Change visible properties order and list
-    this.furnitureController.setFurnitureVisibleProperties(
-        Arrays.asList(new HomePieceOfFurniture.SortableProperty [] {
-            HomePieceOfFurniture.SortableProperty.MOVABLE,
-            HomePieceOfFurniture.SortableProperty.NAME}));
+    this.furnitureController.setFurnitureVisiblePropertyNames(
+        Arrays.asList(new String [] {
+            HomePieceOfFurniture.SortableProperty.MOVABLE.name(),
+            HomePieceOfFurniture.SortableProperty.NAME.name()}));
     // Check displayed values in table contains piece name and visible properties
     assertFurnitureFirstRowEquals(this.furnitureTable, piece.isMovable(), piece.getName());
 
@@ -373,7 +372,10 @@ public class HomeControllerTest extends TestCase {
     Rectangle2D piecesRectangle = getSurroundingRectangle(piece1);
     piecesRectangle.add(getSurroundingRectangle(piece2));
     Rectangle2D groupRectangle = getSurroundingRectangle(group);
-    assertEquals("Surrounding rectangle is incorrect", piecesRectangle, groupRectangle);
+    assertEquals("Surrounding rectangle x is incorrect", piecesRectangle.getX(), groupRectangle.getX(), 0.0001);
+    assertEquals("Surrounding rectangle y is incorrect", piecesRectangle.getY(), groupRectangle.getY(), 0.0001);
+    assertEquals("Surrounding rectangle width is incorrect", piecesRectangle.getWidth(), groupRectangle.getWidth(), 0.0001);
+    assertEquals("Surrounding rectangle height is incorrect", piecesRectangle.getHeight(), groupRectangle.getHeight(), 0.0001);
     // Compare elevation and height
     assertEquals("Wrong elevation", Math.min(piece1.getElevation(), piece2.getElevation()), group.getElevation());
     assertEquals("Wrong height",

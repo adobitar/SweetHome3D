@@ -1,7 +1,7 @@
 /*
  * ImportedTextureWizardStepsPanel.java 01 oct. 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -188,7 +188,7 @@ public class ImportedTextureWizardStepsPanel extends JPanel implements View {
                   ImportedTextureWizardStepsPanel.class, "findImagesMessage.title");
               findImagesMessageTextArea.setEditable(false);
               findImagesMessageTextArea.setOpaque(false);
-              JOptionPane.showMessageDialog(SwingUtilities.getRootPane(ImportedTextureWizardStepsPanel.this),
+              SwingTools.showMessageDialog(ImportedTextureWizardStepsPanel.this,
                   findImagesMessageTextArea, findImagesTitle,
                   JOptionPane.INFORMATION_MESSAGE);
             }
@@ -681,8 +681,7 @@ public class ImportedTextureWizardStepsPanel extends JPanel implements View {
                   controller.setCreator(null);
                   float defaultWidth = 20;
                   LengthUnit lengthUnit = preferences.getLengthUnit();
-                  if (lengthUnit == LengthUnit.INCH
-                      || lengthUnit == LengthUnit.INCH_DECIMALS) {
+                  if (!lengthUnit.isMetric()) {
                     defaultWidth = LengthUnit.inchToCentimeter(8);
                   }
                   controller.setWidth(defaultWidth);

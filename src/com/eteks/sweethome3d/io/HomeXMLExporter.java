@@ -1,7 +1,7 @@
 /*
  * HomeXMLExporter.java
  *
- * Copyright (c) 2015 Emmanuel PUYBARET / eTeks <info@eteks.com>. All Rights Reserved.
+ * Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@ import java.util.Map;
 
 import com.eteks.sweethome3d.model.BackgroundImage;
 import com.eteks.sweethome3d.model.Baseboard;
+import com.eteks.sweethome3d.model.BoxBounds;
 import com.eteks.sweethome3d.model.Camera;
 import com.eteks.sweethome3d.model.Compass;
 import com.eteks.sweethome3d.model.Content;
@@ -42,10 +43,12 @@ import com.eteks.sweethome3d.model.HomeMaterial;
 import com.eteks.sweethome3d.model.HomeObject;
 import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomePrint;
+import com.eteks.sweethome3d.model.HomeShelfUnit;
 import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.LightSource;
+import com.eteks.sweethome3d.model.ObjectProperty;
 import com.eteks.sweethome3d.model.ObserverCamera;
 import com.eteks.sweethome3d.model.Polyline;
 import com.eteks.sweethome3d.model.Room;
@@ -115,8 +118,8 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
     writer.writeAttribute("selectedLevel", getId(home.getSelectedLevel()), null);
     writer.writeFloatAttribute("wallHeight", home.getWallHeight());
     writer.writeBooleanAttribute("basePlanLocked", home.isBasePlanLocked(), false);
-    if (home.getFurnitureSortedProperty() != null) {
-      writer.writeAttribute("furnitureSortedProperty", home.getFurnitureSortedProperty().name());
+    if (home.getFurnitureSortedPropertyName() != null) {
+      writer.writeAttribute("furnitureSortedProperty", home.getFurnitureSortedPropertyName());
     }
     writer.writeBooleanAttribute("furnitureDescendingSorted", home.isFurnitureDescendingSorted(), false);
   }
@@ -130,12 +133,12 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
     List<String> propertiesNames = new ArrayList<String>(home.getPropertyNames());
     Collections.sort(propertiesNames);
     for (String propertyName : propertiesNames) {
-      writeProperty(writer, propertyName, home.getProperty(propertyName));
+      writeProperty(writer, home, propertyName, home.getProperty(propertyName), false);
     }
     // Write furniture visible properties
-    for (HomePieceOfFurniture.SortableProperty property : home.getFurnitureVisibleProperties()) {
+    for (String property : home.getFurnitureVisiblePropertyNames()) {
       writer.writeStartElement("furnitureVisibleProperty");
-      writer.writeAttribute("name", property.name());
+      writer.writeAttribute("name", property);
       writer.writeEndElement();
     }
     // Write environment, compass and cameras
@@ -259,6 +262,18 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
             writer.writeFloatAttribute("paperRightMargin", print.getPaperRightMargin());
             writer.writeAttribute("paperOrientation", print.getPaperOrientation().name());
           }
+
+          @Override
+          protected void writeChildren(XMLWriter writer, HomePrint print) throws IOException {
+            List<Level> printedLevels = print.getPrintedLevels();
+            if (printedLevels != null) {
+              for (Level level : printedLevels) {
+                writer.writeStartElement("printedLevel");
+                writer.writeAttribute("level", getId(level));
+                writer.writeEndElement();
+              }
+            }
+          }
         }.writeElement(writer, print);
     }
   }
@@ -312,6 +327,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
             if (camera instanceof ObserverCamera) {
               writer.writeBooleanAttribute("fixedSize", ((ObserverCamera)camera).isFixedSize(), false);
             }
+            writer.writeAttribute("renderer", camera.getRenderer(), null);
           }
 
           @Override
@@ -385,7 +401,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
       writer.writeFloatAttribute("depthInPlan", piece.getDepthInPlan(), piece.getDepth());
       writer.writeFloatAttribute("height", piece.getHeight());
       writer.writeFloatAttribute("heightInPlan", piece.getHeightInPlan(), piece.getHeight());
-      writer.writeBooleanAttribute("backFaceShown", piece.isBackFaceShown(), false);
+      writer.writeIntegerAttribute("modelFlags", piece.getModelFlags(), 0);
       writer.writeBooleanAttribute("modelMirrored", piece.isModelMirrored(), false);
       writer.writeBooleanAttribute("visible", piece.isVisible(), true);
       writer.writeColorAttribute("color", piece.getColor());
@@ -402,6 +418,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
       writer.writeLongAttribute("modelSize", piece.getModelSize());
       writer.writeAttribute("description", piece.getDescription(), null);
       writer.writeAttribute("information", piece.getInformation(), null);
+      writer.writeAttribute("license", piece.getLicense(), null);
       writer.writeBooleanAttribute("movable", piece.isMovable(), true);
       if (!(piece instanceof HomeFurnitureGroup)) {
         if (!(piece instanceof HomeDoorOrWindow)) {
@@ -467,6 +484,11 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writer.writeFloatAttribute("diameter", lightSource.getDiameter());
           writer.writeEndElement();
         }
+        for (String lightSourceMaterialName : ((HomeLight)piece).getLightSourceMaterialNames()) {
+          writer.writeStartElement("lightSourceMaterial");
+          writer.writeAttribute("name", lightSourceMaterialName);
+          writer.writeEndElement();
+        }
       } else if (piece instanceof HomeDoorOrWindow) {
         for (Sash sash : ((HomeDoorOrWindow)piece).getSashes()) {
           writer.writeStartElement("sash");
@@ -476,6 +498,29 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writer.writeFloatAttribute("startAngle", sash.getStartAngle());
           writer.writeFloatAttribute("endAngle", sash.getEndAngle());
           writer.writeEndElement();
+        }
+      } else if (piece instanceof HomeShelfUnit) {
+        HomeShelfUnit shelf = (HomeShelfUnit)piece;
+        float [] shelfElevations = shelf.getShelfElevations();
+        if (shelfElevations != null) {
+          for (int i = 0; i < shelfElevations.length; i++) {
+            writer.writeStartElement("shelf");
+            writer.writeFloatAttribute("elevation", shelfElevations [i]);
+            writer.writeEndElement();
+          }
+        }
+        BoxBounds [] shelfBoxes = shelf.getShelfBoxes();
+        if (shelfBoxes != null) {
+          for (int i = 0; i < shelfBoxes.length; i++) {
+            writer.writeStartElement("shelf");
+            writer.writeFloatAttribute("xLower", shelfBoxes [i].getXLower());
+            writer.writeFloatAttribute("yLower", shelfBoxes [i].getYLower());
+            writer.writeFloatAttribute("zLower", shelfBoxes [i].getZLower());
+            writer.writeFloatAttribute("xUpper", shelfBoxes [i].getXUpper());
+            writer.writeFloatAttribute("yUpper", shelfBoxes [i].getYUpper());
+            writer.writeFloatAttribute("zUpper", shelfBoxes [i].getZUpper());
+            writer.writeEndElement();
+          }
         }
       }
 
@@ -607,6 +652,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           writer.writeBooleanAttribute("ceilingVisible", room.isCeilingVisible(), true);
           writer.writeColorAttribute("ceilingColor", room.getCeilingColor());
           writer.writeFloatAttribute("ceilingShininess", room.getCeilingShininess(), 0);
+          writer.writeBooleanAttribute("ceilingFlat", room.isCeilingFlat(), false);
         }
 
         @Override
@@ -686,9 +732,15 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
           }
           writer.writeFloatAttribute("xStart", dimensionLine.getXStart());
           writer.writeFloatAttribute("yStart", dimensionLine.getYStart());
+          writer.writeFloatAttribute("elevationStart", dimensionLine.getElevationStart(), 0);
           writer.writeFloatAttribute("xEnd", dimensionLine.getXEnd());
           writer.writeFloatAttribute("yEnd", dimensionLine.getYEnd());
+          writer.writeFloatAttribute("elevationEnd", dimensionLine.getElevationEnd(), 0);
           writer.writeFloatAttribute("offset", dimensionLine.getOffset());
+          writer.writeFloatAttribute("endMarkSize", dimensionLine.getEndMarkSize(), 10);
+          writer.writeFloatAttribute("pitch", dimensionLine.getPitch(), 0);
+          writer.writeColorAttribute("color", dimensionLine.getColor());
+          writer.writeBooleanAttribute("visibleIn3D", dimensionLine.isVisibleIn3D(), false);
         }
 
         @Override
@@ -793,6 +845,7 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
             writer.writeFloatAttribute("yOffset", texture.getYOffset(), 0f);
             writer.writeFloatAttribute("angle", texture.getAngle(), 0f);
             writer.writeFloatAttribute("scale", texture.getScale(), 1f);
+            writer.writeBooleanAttribute("fittingArea", texture.isFittingArea(), false);
             writer.writeBooleanAttribute("leftToRightOriented", texture.isLeftToRightOriented(), true);
             writer.writeAttribute("image", getExportedContentName(texture, texture.getImage()), null);
           }
@@ -807,18 +860,27 @@ public class HomeXMLExporter extends ObjectXMLExporter<Home> {
     List<String> propertiesNames = new ArrayList<String>(object.getPropertyNames());
     Collections.sort(propertiesNames);
     for (String propertyName : propertiesNames) {
-      writeProperty(writer, propertyName, object.getProperty(propertyName));
+      boolean propertyContent = object.isContentProperty(propertyName);
+      writeProperty(writer, object, propertyName,
+          propertyContent ? object.getContentProperty(propertyName) : object.getProperty(propertyName),
+          propertyContent);
     }
   }
 
   /**
    * Writes in XML the given property.
    */
-  private void writeProperty(XMLWriter writer, String propertyName, String propertyValue) throws IOException {
+  private void writeProperty(XMLWriter writer, Object object,
+                             String propertyName, Object propertyValue, boolean content) throws IOException {
     if (propertyValue != null) {
       writer.writeStartElement("property");
       writer.writeAttribute("name", propertyName);
-      writer.writeAttribute("value", propertyValue);
+      writer.writeAttribute("value", content
+          ? getExportedContentName(object, (Content)propertyValue)
+          : propertyValue.toString());
+      if (content) {
+        writer.writeAttribute("type", ObjectProperty.Type.CONTENT.name());
+      }
       writer.writeEndElement();
     }
   }

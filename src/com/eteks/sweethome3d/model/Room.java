@@ -1,7 +1,7 @@
 /*
  * Room.java 18 nov. 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@ import java.awt.geom.Area;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Rectangle2D;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -39,8 +41,8 @@ public class Room extends HomeObject implements Selectable, Elevatable {
    */
   public enum Property {NAME, NAME_X_OFFSET, NAME_Y_OFFSET, NAME_STYLE, NAME_ANGLE,
       POINTS, AREA_VISIBLE, AREA_X_OFFSET, AREA_Y_OFFSET, AREA_STYLE, AREA_ANGLE,
-      FLOOR_COLOR, FLOOR_TEXTURE, FLOOR_VISIBLE, FLOOR_SHININESS,
-      CEILING_COLOR, CEILING_TEXTURE, CEILING_VISIBLE, CEILING_SHININESS, LEVEL}
+      FLOOR_COLOR, FLOOR_TEXTURE, FLOOR_VISIBLE, FLOOR_SHININESS, 
+      CEILING_COLOR, CEILING_TEXTURE, CEILING_VISIBLE, CEILING_SHININESS, CEILING_FLAT, LEVEL}
 
   private static final long serialVersionUID = 1L;
 
@@ -65,10 +67,12 @@ public class Room extends HomeObject implements Selectable, Elevatable {
   private Integer             ceilingColor;
   private HomeTexture         ceilingTexture;
   private float               ceilingShininess;
+  private boolean             ceilingFlat;
   private Level               level;
 
-  private transient Shape     shapeCache;
-  private transient Float     areaCache;
+  private transient Shape       shapeCache;
+  private transient Rectangle2D boundsCache;
+  private transient Float       areaCache;
 
   /**
    * Creates a room from its name and the given coordinates.
@@ -90,6 +94,16 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     this.nameYOffset = -40f;
     this.floorVisible = true;
     this.ceilingVisible = true;
+    this.ceilingFlat = true;
+  }
+
+  /**
+   * Initializes new room fields to their default values
+   * and reads room from <code>in</code> stream with default reading method.
+   */
+  private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+    this.ceilingFlat = false;
+    in.defaultReadObject();
   }
 
   /**
@@ -235,6 +249,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     float [][] oldPoints = this.points;
     this.points = deepCopy(points);
     this.shapeCache = null;
+    this.boundsCache = null;
     this.areaCache  = null;
     firePropertyChange(Property.POINTS.name(), oldPoints, points);
   }
@@ -265,6 +280,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     float [][] oldPoints = this.points;
     this.points = newPoints;
     this.shapeCache = null;
+    this.boundsCache = null;
     this.areaCache  = null;
     firePropertyChange(Property.POINTS.name(), oldPoints, deepCopy(this.points));
   }
@@ -285,6 +301,7 @@ public class Room extends HomeObject implements Selectable, Elevatable {
       this.points [index][0] = x;
       this.points [index][1] = y;
       this.shapeCache = null;
+      this.boundsCache = null;
       this.areaCache  = null;
       firePropertyChange(Property.POINTS.name(), oldPoints, deepCopy(this.points));
     }
@@ -309,8 +326,31 @@ public class Room extends HomeObject implements Selectable, Elevatable {
     float [][] oldPoints = this.points;
     this.points = newPoints;
     this.shapeCache = null;
+    this.boundsCache = null;
     this.areaCache  = null;
     firePropertyChange(Property.POINTS.name(), oldPoints, deepCopy(this.points));
+  }
+
+  /**
+   * Returns the minimum coordinates of the rectangle bounding this room.
+   * @since 7.0
+   */
+  public float[] getBoundsMinimumCoordinates() {
+    if (this.boundsCache == null) {
+      this.boundsCache = getShape().getBounds2D();
+    }
+    return new float [] {(float)this.boundsCache.getMinX(), (float)this.boundsCache.getMinY()};
+  }
+
+  /**
+   * Returns the maximum coordinates of the rectangle bounding this room.
+   * @since 7.0
+   */
+  public float[] getBoundsMaximumCoordinates() {
+    if (this.boundsCache == null) {
+      this.boundsCache = getShape().getBounds2D();
+    }
+    return new float [] {(float)this.boundsCache.getMaxX(), (float)this.boundsCache.getMaxY()};
   }
 
   /**
@@ -596,6 +636,26 @@ public class Room extends HomeObject implements Selectable, Elevatable {
       float oldCeilingShininess = this.ceilingShininess;
       this.ceilingShininess = ceilingShininess;
       firePropertyChange(Property.CEILING_SHININESS.name(), oldCeilingShininess, ceilingShininess);
+    }
+  }
+
+  /**
+   * Returns <code>true</code> if the ceiling should remain flat whatever its environment.
+   * @since 7.0
+   */
+  public boolean isCeilingFlat() {
+    return this.ceilingFlat;
+  }
+
+  /**
+   * Sets whether the floor texture should remain flat. Once this room is updated,
+   * listeners added to this room will receive a change notification.
+   * @since 7.0
+   */
+  public void setCeilingFlat(boolean ceilingFlat) {
+    if (ceilingFlat != this.ceilingFlat) {
+      this.ceilingFlat = ceilingFlat;
+      firePropertyChange(Property.CEILING_FLAT.name(), !ceilingFlat, ceilingFlat);
     }
   }
 

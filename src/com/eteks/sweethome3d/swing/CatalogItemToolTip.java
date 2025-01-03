@@ -1,7 +1,7 @@
 /*
  * CatalogItemToolTip.java 17 avr. 2013
  *
- * Sweet Home 3D, Copyright (c) 2013 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,13 +24,18 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.Insets;
-import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.Format;
 import java.text.NumberFormat;
+import java.util.Iterator;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JToolTip;
@@ -108,8 +113,9 @@ public class CatalogItemToolTip extends JToolTip {
   public void setCatalogItem(CatalogItem item) {
     if (item != this.catalogItem) {
       String tipTextCreator = null;
-      String tipTextDimensions = null;
       String tipTextModelSize = null;
+      String tipTextDimensions = null;
+      String tipTextDescription = null;
       if (this.preferences != null) {
         String creator = item.getCreator();
         if (creator != null && creator.length() > 0) {
@@ -123,6 +129,36 @@ public class CatalogItemToolTip extends JToolTip {
           if (piece.getModelSize() != null && piece.getModelSize() > 0) {
             tipTextModelSize = this.preferences.getLocalizedString(CatalogItemToolTip.class, "tooltipModelSize",
                 NumberFormat.getIntegerInstance().format(Math.max(1, (int)Math.round(piece.getModelSize() / 1000.))));
+          }
+          tipTextDescription = piece.getDescription();
+          if (tipTextDescription != null) {
+            if (Boolean.getBoolean("com.eteks.sweethome3d.descriptionIgnoredInCatalogToolTip")) {
+              tipTextDescription = null;
+            } else {
+              int descriptionLength = tipTextDescription.length();
+              int maxLineLength = Math.max(tipTextDimensions.length(), piece.getName() != null ? piece.getName().length() : 0);
+              if (descriptionLength > 200
+                  || tipTextDescription.indexOf(' ') < 0 && descriptionLength > maxLineLength
+                  || tipTextDescription.indexOf(' ') >= maxLineLength) {
+                tipTextDescription = tipTextDescription.substring(0, descriptionLength > 200 ? 200 : maxLineLength) + "...";
+              }
+              if (tipTextDescription.indexOf("<br>") < 0
+                  && descriptionLength > maxLineLength) {
+                // Split long description to avoid too large tool tips
+                String [] texts = tipTextDescription.split(" ");
+                tipTextDescription = "";
+                for (int i = 0; i < texts.length; ) {
+                  String line = texts [i++];
+                  while (i < texts.length && line.length() < maxLineLength) {
+                    line += " " + texts [i++];
+                  }
+                  if (tipTextDescription.length() > 0) {
+                    tipTextDescription += "<br>";
+                  }
+                  tipTextDescription += line;
+                }
+              }
+            }
           }
         } else if (item instanceof CatalogTexture) {
           CatalogTexture piece = (CatalogTexture)item;
@@ -144,6 +180,9 @@ public class CatalogItemToolTip extends JToolTip {
           }
 
           tipText += "<b>" + item.getName() + "</b>";
+          if (tipTextDescription != null) {
+            tipText += "<br>" + tipTextDescription + "</table>";
+          }
           if (tipTextDimensions != null) {
             tipText += "<br>" + tipTextDimensions;
           }
@@ -171,6 +210,9 @@ public class CatalogItemToolTip extends JToolTip {
             tipText += "- <b>" + ((CatalogPieceOfFurniture)item).getCategory().getName() + "</b> -<br>";
           }
           tipText += "<b>" + item.getName() + "</b>";
+          if (tipTextDescription != null) {
+            tipText += "<br>" + tipTextDescription;
+          }
           if (tipTextDimensions != null) {
             tipText += "<br>" + tipTextDimensions;
           }
@@ -197,23 +239,41 @@ public class CatalogItemToolTip extends JToolTip {
         InputStream iconStream = null;
         try {
           // Ensure image will always be viewed in a 128x128 pixels cell
-          iconStream = item.getIcon().openStream();
-          BufferedImage image = ImageIO.read(iconStream);
-          if (image != null) {
-            int width = Math.round(ICON_SIZE * Math.min(1f, (float)image.getWidth() / image.getHeight()));
-            int height = Math.round((float)width * image.getHeight() / image.getWidth());
+          iconStream = new BufferedInputStream(item.getIcon().openStream());
+          // Prefer to use a JLabel for the piece icon instead of a HTML <img> tag
+          // to avoid using cache to access files with jar protocol as suggested
+          // in http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6962459
+          ByteArrayOutputStream out = new ByteArrayOutputStream();
+          byte [] bytes = new byte [1024];
+          for (int i; (i = iconStream.read(bytes)) != -1; ) {
+            out.write(bytes, 0, i);
+          }
+          byte [] imageData = out.toByteArray();
+
+          ImageInputStream imageInputStream = ImageIO.createImageInputStream(new ByteArrayInputStream(imageData));
+          Iterator<ImageReader> it = ImageIO.getImageReaders(imageInputStream);
+          if (it.hasNext()) {
+            ImageReader reader = (ImageReader)it.next();
+            reader.setInput(imageInputStream);
+            int imageWidth = reader.getWidth(reader.getMinIndex());
+            int imageHeight = reader.getHeight(reader.getMinIndex());
+            int width = Math.round(ICON_SIZE * Math.min(1f, (float)imageWidth / imageHeight));
+            int height = Math.round((float)width * imageHeight / imageWidth);
+
             if (iconInHtmlImgTag) {
               tipText += "<tr><td width='" + ICON_SIZE + "' height='" + ICON_SIZE + "' align='center' valign='middle'><img width='" + width
                   + "' height='" + height + "' src='"
                   + ((URLContent)item.getIcon()).getURL() + "'></td></tr>";
             } else {
-              // Prefer to use a JLabel for the piece icon instead of a HTML <img> tag
-              // to avoid using cache to access files with jar protocol as suggested
-              // in http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6962459
-              this.itemIconLabel.setIcon(new ImageIcon(image.getHeight() != height
-                  ? image.getScaledInstance(width, height, Image.SCALE_SMOOTH)
-                  : image));
+              // Create ImageIcon from imageData to keep GIF animation if any
+              ImageIcon imageIcon = new ImageIcon(imageData);
+              if (imageHeight != height) {
+                imageIcon.setImage(imageIcon.getImage().getScaledInstance(width, height,
+                    reader.getNumImages(true) > 1 ? Image.SCALE_DEFAULT : Image.SCALE_SMOOTH));
+              }
+              this.itemIconLabel.setIcon(imageIcon);
             }
+            reader.dispose();
           }
         } catch (IOException ex) {
         } finally {
@@ -247,6 +307,12 @@ public class CatalogItemToolTip extends JToolTip {
   public Dimension getPreferredSize() {
     Dimension preferredSize = super.getPreferredSize();
     if (this.itemIconLabel.getIcon() != null) {
+      if (OperatingSystem.isWindows()
+          && OperatingSystem.isJavaVersionBetween("10", "16")) {
+        // Enlarge tool tip to ensure its text isn't split on more lines
+        // See https://bugs.openjdk.java.net/browse/JDK-8213535
+        preferredSize.width += 8;
+      }
       preferredSize.width = Math.max(preferredSize.width, ICON_SIZE + Math.round(8 * SwingTools.getResolutionScale()));
       preferredSize.height += ICON_SIZE + Math.round(8 * SwingTools.getResolutionScale());
     }

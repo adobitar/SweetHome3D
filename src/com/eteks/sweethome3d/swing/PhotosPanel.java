@@ -1,7 +1,7 @@
 /*
  * PhotosPanel.java 5 Nov 2012
  *
- * Sweet Home 3D, Copyright (c) 2012 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,7 +85,7 @@ import javax.swing.UIManager;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
-import com.eteks.sweethome3d.j3d.PhotoRenderer;
+import com.eteks.sweethome3d.j3d.AbstractPhotoRenderer;
 import com.eteks.sweethome3d.model.Camera;
 import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.Selectable;
@@ -643,10 +643,11 @@ public class PhotosPanel extends JPanel implements DialogView {
         home.setCamera(camera);
         if (quality >= 2) {
           // Use photo renderer
-          PhotoRenderer photoRenderer = new PhotoRenderer(home, this.object3dFactory,
-            quality == 2
-                ? PhotoRenderer.Quality.LOW
-                : PhotoRenderer.Quality.HIGH);
+          AbstractPhotoRenderer photoRenderer = AbstractPhotoRenderer.createInstance(
+              camera.getRenderer(), home, this.object3dFactory,
+              quality == 2
+                  ? AbstractPhotoRenderer.Quality.LOW
+                  : AbstractPhotoRenderer.Quality.HIGH);
           int bestImageHeight;
           // Update ratio if lens is fisheye or spherical
           if (camera.getLens() == Camera.Lens.FISHEYE) {
@@ -730,7 +731,7 @@ public class PhotosPanel extends JPanel implements DialogView {
       EventQueue.invokeAndWait(new Runnable() {
           public void run() {
             String messageFormat = preferences.getLocalizedString(PhotosPanel.class, "savePhotosError.message");
-            JOptionPane.showMessageDialog(SwingUtilities.getRootPane(PhotosPanel.this), String.format(messageFormat, ex.getMessage()),
+            SwingTools.showMessageDialog(PhotosPanel.this, String.format(messageFormat, ex.getMessage()),
                 preferences.getLocalizedString(PhotosPanel.class, "savePhotosError.title"), JOptionPane.ERROR_MESSAGE);
           }
         });
@@ -749,7 +750,7 @@ public class PhotosPanel extends JPanel implements DialogView {
         public void run() {
           String title = preferences.getLocalizedString(PhotosPanel.class, "error.title");
           String message = preferences.getLocalizedString(PhotosPanel.class, "error.message");
-          JOptionPane.showMessageDialog(PhotosPanel.this, message, title, JOptionPane.ERROR_MESSAGE);
+          SwingTools.showMessageDialog(PhotosPanel.this, message, title, JOptionPane.ERROR_MESSAGE);
         }
       });
   }

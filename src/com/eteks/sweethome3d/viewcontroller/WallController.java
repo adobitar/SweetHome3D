@@ -1,7 +1,7 @@
 /*
  * WallController.java 30 mai 07
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -236,12 +236,15 @@ public class WallController implements Controller {
       getRightSideTextureController().setTexture(null);
       setRightSidePaint(null);
       setRightSideShininess(null);
-      getLeftSideBaseboardController().setVisible(null);
-      getLeftSideBaseboardController().setThickness(null);
-      getLeftSideBaseboardController().setHeight(null);
-      getLeftSideBaseboardController().setColor(null);
-      getLeftSideBaseboardController().getTextureController().setTexture(null);
-      getLeftSideBaseboardController().setPaint(null);
+      getRightSideBaseboardController().setVisible(null);
+      getRightSideBaseboardController().setThickness(null);
+      getRightSideBaseboardController().setHeight(null);
+      getRightSideBaseboardController().setColor(null);
+      getRightSideBaseboardController().getTextureController().setTexture(null);
+      getRightSideBaseboardController().setPaint(null);
+      setPattern(null);
+      setTopColor(null);
+      setTopPaint(null);
       setRectangularWallHeight(null);
       setSlopingWallHeightAtStart(null);
       setSlopingWallHeightAtEnd(null);

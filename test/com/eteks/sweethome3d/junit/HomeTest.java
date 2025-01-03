@@ -1,7 +1,7 @@
 /*
  * HomeControllerTest.java 6 juin 2006
  *
- * Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>. All Rights Reserved.
+ * Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@ import com.eteks.sweethome3d.model.Home;
 import com.eteks.sweethome3d.model.HomeObject;
 import com.eteks.sweethome3d.model.Label;
 import com.eteks.sweethome3d.model.Wall;
+import com.eteks.sweethome3d.tools.URLContent;
 
 import junit.framework.TestCase;
 
@@ -144,7 +145,6 @@ public class HomeTest extends TestCase {
       };
     object.addPropertyChangeListener(userPropertyChangeListener);
     object.setProperty("name", "My object");
-    assertEquals("Wrong count of properties", 1, object.getPropertyNames().size());
     assertEquals("Wrong property name", "name", object.getPropertyNames().iterator().next());
     assertEquals("Wrong property property name", "name", propertyName.get());
     assertEquals("Wrong property value", "My object", object.getProperty("name"));
@@ -162,6 +162,15 @@ public class HomeTest extends TestCase {
     object.setProperty("id", null);
     assertEquals("Wrong count of properties", 0, object.getPropertyNames().size());
     assertEquals("Wrong properties count on clone", 0, object.clone().getPropertyNames().size());
+    // Check content is handled correctly
+    URLContent imageContent = new URLContent(HomeTest.class.getResource("resources/test.png"));
+    object.setProperty("image", imageContent);
+    assertEquals("Wrong property name", "image", object.getPropertyNames().iterator().next());
+    assertEquals("Wrong count of properties", 1, object.getPropertyNames().size());
+    assertEquals("Wrong property property name", "image", propertyName.get());
+    assertTrue("Property not content", object.isContentProperty("image"));
+    assertNull("Content string not null", object.clone().getProperty("image"));
+    assertEquals("Wrong property value on clone", imageContent, object.clone().getContentProperty("image"));
 
     Label label = new Label("Text", 0, 0);
     PropertyChangeListener modelPropertyChangeListener = new PropertyChangeListener() {

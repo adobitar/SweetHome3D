@@ -1,8 +1,8 @@
 ﻿; signedInstallerInnoSetup.iss
 ;
-; Sweet Home 3D, Copyright (c) 2007-2020 Emmanuel PUYBARET / eTeks <info@eteks.com>
+; Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
 ;
-; SweetHome3D-6.4.2-windows.exe setup program creator
+; SweetHome3D-7.5-windows.exe setup program creator
 ; This UTF-8 BOM encoded script requires Inno Setup Unicode available at http://www.jrsoftware.org/isinfo.php
 ; and a build directory stored in current directory containing :
 ;   a SweetHome3D.exe file built with launch4j
@@ -14,38 +14,38 @@
 [Setup]
 DisableWelcomePage=no
 AppName=Sweet Home 3D
-AppVersion=6.4.2
-AppCopyright=Copyright (c) 2007-2020 eTeks
-AppVerName=Sweet Home 3D version 6.4.2
-AppPublisher=eTeks
-AppPublisherURL=http://www.eteks.com
+AppVersion=7.5
+AppCopyright=Copyright (c) 2024 Space Mushrooms
+AppVerName=Sweet Home 3D version 7.5
+AppPublisher=Space Mushrooms
+AppPublisherURL=http://www.sweethome3d.com
 AppSupportURL=http://sweethome3d.sourceforge.net
 AppUpdatesURL=http://sweethome3d.sourceforge.net
 DisableDirPage=no
 DefaultDirName={pf}\Sweet Home 3D
-DefaultGroupName=eTeks Sweet Home 3D
+DefaultGroupName=Sweet Home 3D
 LicenseFile=..\..\COPYING.TXT
 OutputDir=.
-OutputBaseFilename=SweetHome3D-6.4.2-windows
+OutputBaseFilename=SweetHome3D-7.5-windows
 Compression=lzma2/ultra64
 SolidCompression=yes
 ChangesAssociations=yes
-ExtraDiskSpaceRequired=107000000
-VersionInfoVersion=6.4.2.0
-VersionInfoTextVersion=6.4.2
+ExtraDiskSpaceRequired=104900000
+VersionInfoVersion=7.5.0.0
+VersionInfoTextVersion=7.5
 VersionInfoDescription=Sweet Home 3D Setup
-VersionInfoCopyright=Copyright (c) 2007-2020 eTeks
-VersionInfoCompany=eTeks
+VersionInfoCopyright=Copyright (c) 2024 Space Mushrooms
+VersionInfoCompany=Space Mushrooms
 ; Install in 64 bit mode if possible
 ArchitecturesInstallIn64BitMode=x64
 ; Signing
 ;
-; Requires keys.p12 in current directory
+; Requires signature thumbprint and timestamp authority URL
 ; Enter password and define SignToolPgm in Ant with following tasks:
-; <input message="Enter signature password:" 
-;        addproperty="password"/> 
+; <input message="Enter signature thumbprint:"  addproperty="thumbprint"/> 
+; <input message="Enter URL of timestamp authority:" addproperty="timestampAuthorityURL" defaultvalue="http://time.certum.pl/"/> 
 ; <exec executable="C:\Program Files\Inno Setup 5\ISCC.exe">
-;    <arg value="/sSignToolPgm=$$qC:\Program Files (x86)\Windows Kits\8.1\bin\x86\signtool.exe$$q sign /f $$q${basedir}\keys.p12$$q /p ${password} $p"/>
+;    <arg value="/sSignToolPgm=$$qC:\Program Files (x86)\Windows Kits\8.1\bin\x86\signtool.exe$$q sign /sha1 ${thumbprint} /tr ${timestampAuthorityURL} /td sha256 /fd sha256 /as $p"/>
 ;    <arg value="${basedir}\install\windows\signedInstallerInnoSetup.iss"/>
 ; </exec>  
 SignTool=SignToolPgm /d $qSweet Home 3D Installer$q /du $qhttp://www.sweethome3d.com/$q $f
@@ -62,9 +62,9 @@ Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 Name: "czech"; MessagesFile: "compiler:Languages\Czech.isl"
 Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
-Name: "hungarian"; MessagesFile: "Hungarian.isl"
+Name: "hungarian"; MessagesFile: "compiler:Languages\Hungarian.isl"
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
-Name: "greek"; MessagesFile: "Greek.isl"
+Name: "greek"; MessagesFile: "compiler:Languages\Greek.isl"
 Name: "japanese"; Messagesfile: "compiler:Languages\Japanese.isl"
 Name: "swedish"; MessagesFile: "Swedish.isl"
 Name: "chinesesimp"; Messagesfile: "ChineseSimplified.isl"
@@ -77,6 +77,7 @@ Name: desktopicon; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm
 [InstallDelete]
 ; Remove old jres
 Type: filesandordirs; Name: "{app}\jre6"
+Type: filesandordirs; Name: "{app}\jre8"
 Type: filesandordirs; Name: "{app}\jre1.8.0_51"
 Type: filesandordirs; Name: "{app}\jre1.8.0_60"
 Type: filesandordirs; Name: "{app}\jre1.8.0_66"
@@ -89,7 +90,7 @@ Type: filesandordirs; Name: "{app}\lib\java3d-1.6"; Check: IsJava3D152Installed
 
 [Files]
 Source: "build\*.TXT"; DestDir: "{app}"; Flags: ignoreversion 
-Source: "build\lib\SweetHome3D.pack.gz"; DestDir: "{app}\lib"; Flags: ignoreversion
+Source: "build\lib\SweetHome3D.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 Source: "build\lib\Furniture.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 Source: "build\lib\Textures.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 Source: "build\lib\Examples.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
@@ -100,19 +101,26 @@ Source: "build\lib\sunflow-*.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 Source: "build\lib\freehep-vectorgraphics-svg-*.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 Source: "build\lib\iText-*.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 Source: "build\lib\jmf.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
+Source: "build\lib\jnlp.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 ; Install Java 3D 1.5.2 Jars
 Source: "build\lib\j3d*.jar"; DestDir: "{app}\lib"; Flags: ignoreversion; Check: IsJava3D152Installed
 Source: "build\lib\vecmath.jar"; DestDir: "{app}\lib"; Flags: ignoreversion; Check: IsJava3D152Installed
 ; Install Java 3D not 1.5.2 Jars
-Source: "build\lib\java3d-1.6\*.jar"; DestDir: "{app}\lib\java3d-1.6"; Flags: ignoreversion; Check: not IsJava3D152Installed
-; Install JRE and Java 3D for not 64 bit
-Source: "build\jre8\x86\*"; DestDir: "{app}\jre8"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not Is64BitInstalled
+Source: "build\lib\java3d-1.6\j3d*.jar"; DestDir: "{app}\lib\java3d-1.6"; Flags: ignoreversion; Check: not IsJava3D152Installed
+Source: "build\lib\java3d-1.6\vecmath.jar"; DestDir: "{app}\lib\java3d-1.6"; Flags: ignoreversion; Check: not IsJava3D152Installed
+Source: "build\lib\java3d-1.6\i586\*.jar"; DestDir: "{app}\lib\java3d-1.6"; Flags: ignoreversion; Check: not Is64BitInstalled and not IsJava3D152Installed
+Source: "build\lib\java3d-1.6\gluegen*.jar"; DestDir: "{app}\lib\java3d-1.6"; Flags: ignoreversion; Check: Is64BitInstalled and not IsJava3D152Installed
+Source: "build\lib\java3d-1.6\jogl*.jar"; DestDir: "{app}\lib\java3d-1.6"; Flags: ignoreversion; Check: Is64BitInstalled and not IsJava3D152Installed
+; Install JRE, Java 3D and Yafaray for not 64 bit
+Source: "build\runtime\x86\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not Is64BitInstalled
 Source: "build\lib\x86\*.dll"; DestDir: "{app}\lib"; Flags: ignoreversion; Check: not Is64BitInstalled and IsJava3D152Installed
 Source: "build\lib\java3d-1.6\x86\*.dll"; DestDir: "{app}\lib\java3d-1.6"; Flags: ignoreversion; Check: not Is64BitInstalled and not IsJava3D152Installed
-; Install JRE and Java 3D for 64 bit
-Source: "build\jre8\x64\*"; DestDir: "{app}\jre8"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: Is64BitInstalled
+Source: "build\lib\yafaray\i386\*.dll"; DestDir: "{app}\lib\yafaray"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not Is64BitInstalled
+; Install JRE, Java 3D and Yafaray for 64 bit
+Source: "build\runtime\x64\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: Is64BitInstalled
 Source: "build\lib\x64\*.dll"; DestDir: "{app}\lib"; Flags: ignoreversion; Check: Is64BitInstalled and IsJava3D152Installed
 Source: "build\lib\java3d-1.6\x64\*.dll"; DestDir: "{app}\lib\java3d-1.6"; Flags: ignoreversion; Check: Is64BitInstalled and not IsJava3D152Installed
+Source: "build\lib\yafaray\x64\*.dll"; DestDir: "{app}\lib\yafaray"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: Is64BitInstalled
 ; Install program for not 64 bit and Java 3D 1.5.2
 Source: "build\SweetHome3D-java3d-1.5.2-x86.exe"; DestDir: "{app}"; DestName: "SweetHome3D.exe"; Flags: ignoreversion; Check: not Is64BitInstalled and IsJava3D152Installed and not IsARM64
 ; Install program for not 64 bit and not Java 3D 1.5.2
@@ -130,19 +138,18 @@ Name: "{group}\{cm:UninstallProgram,Sweet Home 3D}"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\Sweet Home 3D"; Filename: "{app}\SweetHome3D.exe"; Tasks: desktopicon; Comment: "{cm:SweetHome3DComment}"
 
 [Run]
-; Unpack largest jars
-Filename: "{app}\jre8\bin\unpack200.exe"; Parameters:"-r -q ""{app}\jre8\lib\rt.pack.gz"" ""{app}\jre8\lib\rt.jar"""; Flags: runhidden; StatusMsg: "{cm:UnpackingMessage,rt.jar}";
-Filename: "{app}\jre8\bin\unpack200.exe"; Parameters:"-r -q ""{app}\lib\SweetHome3D.pack.gz"" ""{app}\lib\SweetHome3D.jar"""; StatusMsg: "{cm:UnpackingMessage,SweetHome3D.jar}"; Flags: runhidden
+; Unpack rt.jar
+Filename: "{app}\runtime\bin\unpack200.exe"; Parameters:"-r -q ""{app}\runtime\lib\rt.pack.gz"" ""{app}\runtime\lib\rt.jar"""; Flags: runhidden; StatusMsg: "{cm:UnpackingMessage,rt.jar}"; Check: not Is64BitInstalled
 ; Propose user to launch Sweet Home 3D at installation end
 Filename: "{app}\SweetHome3D.exe"; Description: "{cm:LaunchProgram,Sweet Home 3D}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; Delete files created by Launch4j
-Type: filesandordirs; Name: "{app}\jre8\launch4j-tmp"
+Type: filesandordirs; Name: "{app}\runtime\launch4j-tmp"
 ; Delete unpacked jars
-Type: files; Name: "{app}\jre8\lib\rt.jar"
-Type: dirifempty; Name: "{app}\jre8\lib" 
-Type: dirifempty; Name: "{app}\jre8" 
+Type: files; Name: "{app}\runtime\lib\rt.jar"; Check: not Is64BitInstalled
+Type: dirifempty; Name: "{app}\runtime\lib" 
+Type: dirifempty; Name: "{app}\runtime" 
 Type: files; Name: "{app}\lib\SweetHome3D.jar"
 Type: dirifempty; Name: "{app}\lib" 
 Type: dirifempty; Name: "{app}" 
@@ -196,37 +203,38 @@ UnpackingMessage=Unpacking %1...
 french.UnpackingMessage=Décompression du fichier %1...
 
 [Registry]
-Root: HKCR; Subkey: ".sh3d"; ValueType: string; ValueName: ""; ValueData: "eTeks Sweet Home 3D"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: ".sh3x"; ValueType: string; ValueName: ""; ValueData: "eTeks Sweet Home 3D"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: "eTeks Sweet Home 3D"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "eTeks Sweet Home 3D\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"
-Root: HKCR; Subkey: "eTeks Sweet Home 3D\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""
+Root: HKCR; Subkey: ".sh3d"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: ".sh3x"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Sweet Home 3D\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D\Settings"; ValueType: string; ValueName: "checkUpdates"; ValueData: "{code:AreUpdatesChecked}"; Flags: uninsdeletevalue
 
-Root: HKCR; Subkey: ".sh3l"; ValueType: string; ValueName: ""; ValueData: "eTeks Sweet Home 3D Language Library"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Language Library"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Language Library\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Language Library\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""
+Root: HKCR; Subkey: ".sh3l"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D Language Library"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D Language Library"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Sweet Home 3D Language Library\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D Language Library\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""; Flags: uninsdeletevalue
 
-Root: HKCR; Subkey: ".sh3f"; ValueType: string; ValueName: ""; ValueData: "eTeks Sweet Home 3D Furniture Library"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Furniture Library"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Furniture Library\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Furniture Library\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""
+Root: HKCR; Subkey: ".sh3f"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D Furniture Library"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D Furniture Library"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Sweet Home 3D Furniture Library\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D Furniture Library\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""; Flags: uninsdeletevalue
 
-Root: HKCR; Subkey: ".sh3t"; ValueType: string; ValueName: ""; ValueData: "eTeks Sweet Home 3D Textures Library"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Furniture Library"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Furniture Library\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Furniture Library\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""
+Root: HKCR; Subkey: ".sh3t"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D Textures Library"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D Furniture Library"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Sweet Home 3D Furniture Library\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D Furniture Library\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""; Flags: uninsdeletevalue
 
-Root: HKCR; Subkey: ".sh3p"; ValueType: string; ValueName: ""; ValueData: "eTeks Sweet Home 3D Plugin"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Plugin"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Plugin\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"
-Root: HKCR; Subkey: "eTeks Sweet Home 3D Plugin\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""
+Root: HKCR; Subkey: ".sh3p"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D Plugin"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D Plugin"; ValueType: string; ValueName: ""; ValueData: "Sweet Home 3D"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Sweet Home 3D Plugin\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SweetHome3D.exe,0"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Sweet Home 3D Plugin\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SweetHome3D.exe"" -open ""%1"""; Flags: uninsdeletevalue
 
 [Code]
 var architecture64Bit : boolean;
 var uninstallExistingVersionCheckBox : TCheckBox;
-  
-function IsJava3D152Installed: Boolean;
+
+function IsJava3D152Installed : Boolean;
 var
   windowsVersion : TWindowsVersion;
   requiredJava3DVersion : String;
@@ -248,7 +256,7 @@ begin
       end;
 end; 
 
-function Is64BitInstalled: Boolean;
+function Is64BitInstalled : Boolean;
 begin
   Result := architecture64Bit;
 end; 
@@ -391,3 +399,17 @@ begin
              '', SW_HIDE, ewWaitUntilTerminated, resultCode);
   end;
 end;
+
+function AreUpdatesChecked(param: String) : String;
+var
+  i : Integer;
+begin
+  Result := 'true';
+  (* Search checkUpdatesDisabled custom param *)
+  for i := 1 to ParamCount do
+    if CompareText('/checkUpdatesDisabled', ParamStr(i)) = 0 then
+      begin
+        Result := 'false';
+        break;
+      end;
+end; 

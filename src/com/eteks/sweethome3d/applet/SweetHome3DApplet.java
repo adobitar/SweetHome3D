@@ -1,7 +1,7 @@
 /*
  * SweetHome3DApplet.java 10 oct. 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -295,7 +295,8 @@ public class SweetHome3DApplet extends JApplet {
       Class sweetHome3DAppletClass = SweetHome3DApplet.class;
       List java3DFiles = new ArrayList();
       if (System.getProperty("os.name").startsWith("Mac OS X")
-          && System.getProperty("java.version").startsWith("1.5")) {
+          && (System.getProperty("java.version").startsWith("1.5")
+              || System.getProperty("java.version").startsWith("1.6"))) {
         java3DFiles.addAll(Arrays.asList(new String [] {
             "j3dcore.jar", // Main Java 3D jars
             "vecmath.jar",
@@ -311,12 +312,10 @@ public class SweetHome3DApplet extends JApplet {
             "java3d-1.6/j3dcore.jar", // Mac OS X Java 3D 1.6 jars and DLLs
             "java3d-1.6/vecmath.jar",
             "java3d-1.6/j3dutils.jar",
-            "java3d-1.6/gluegen-rt.jar",
-            "java3d-1.6/jogl-java3d.jar",
-            "java3d-1.6/macosx/libgluegen-rt.jnilib",
-            "java3d-1.6/macosx/libjogl_desktop.jnilib",
-            "java3d-1.6/macosx/libnativewindow_awt.jnilib",
-            "java3d-1.6/macosx/libnativewindow_macosx.jnilib"}));
+            "java3d-1.6/macosx/libgluegen_rt.dylib",
+            "java3d-1.6/macosx/libjogl_desktop.dylib",
+            "java3d-1.6/macosx/libnativewindow_awt.dylib",
+            "java3d-1.6/macosx/libnativewindow_macosx.dylib"}));
         try {
           // Disable JOGL library loader
           System.setProperty("jogamp.gluegen.UseTempJarCache", "false");
@@ -324,24 +323,34 @@ public class SweetHome3DApplet extends JApplet {
         } catch (AccessControlException ex) {
           // Unsigned applet
         }
+        if (System.getProperty("os.name").startsWith("Mac OS X")
+            || "64".equals(System.getProperty("sun.arch.data.model"))) {
+          java3DFiles.addAll(Arrays.asList(new String [] {
+            "java3d-1.6/gluegen-rt.jar",
+            "java3d-1.6/jogl-java3d.jar"}));
+        } else {
+          java3DFiles.addAll(Arrays.asList(new String [] {
+            "java3d-1.6/i586/gluegen-rt.jar",
+            "java3d-1.6/i586/jogl-java3d.jar"}));
+        }
       }
       if ("64".equals(System.getProperty("sun.arch.data.model"))) {
         java3DFiles.addAll(Arrays.asList(new String [] {
-          "java3d-1.6/linux/amd64/libgluegen-rt.so", // Linux 64 bits DLLs for Java 3D 1.6
+          "java3d-1.6/linux/amd64/libgluegen_rt.so", // Linux 64 bits DLLs for Java 3D 1.6
           "java3d-1.6/linux/amd64/libjogl_desktop.so",
           "java3d-1.6/linux/amd64/libnativewindow_awt.so",
           "java3d-1.6/linux/amd64/libnativewindow_x11.so",
-          "java3d-1.6/windows/amd64/gluegen-rt.dll", // Windows 64 bits DLLs for Java 3D 1.6
+          "java3d-1.6/windows/amd64/gluegen_rt.dll", // Windows 64 bits DLLs for Java 3D 1.6
           "java3d-1.6/windows/amd64/jogl_desktop.dll",
           "java3d-1.6/windows/amd64/nativewindow_awt.dll",
           "java3d-1.6/windows/amd64/nativewindow_win32.dll"}));
       } else {
         java3DFiles.addAll(Arrays.asList(new String [] {
-          "java3d-1.6/linux/i586/libgluegen-rt.so", // Linux 32 bits DLLs for Java 3D 1.6
+          "java3d-1.6/linux/i586/libgluegen_rt.so", // Linux 32 bits DLLs for Java 3D 1.6
           "java3d-1.6/linux/i586/libjogl_desktop.so",
           "java3d-1.6/linux/i586/libnativewindow_awt.so",
           "java3d-1.6/linux/i586/libnativewindow_x11.so",
-          "java3d-1.6/windows/i586/gluegen-rt.dll", // Windows 32 bits DLLs for Java 3D 1.6
+          "java3d-1.6/windows/i586/gluegen_rt.dll", // Windows 32 bits DLLs for Java 3D 1.6
           "java3d-1.6/windows/i586/jogl_desktop.dll",
           "java3d-1.6/windows/i586/nativewindow_awt.dll",
           "java3d-1.6/windows/i586/nativewindow_win32.dll"}));

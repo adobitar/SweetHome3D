@@ -1,7 +1,7 @@
 /*
  * Ground3D.java 23 janv. 2009
  *
- * Sweet Home 3D, Copyright (c) 2009 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,6 +58,7 @@ import com.eteks.sweethome3d.model.HomePieceOfFurniture;
 import com.eteks.sweethome3d.model.HomeTexture;
 import com.eteks.sweethome3d.model.Level;
 import com.eteks.sweethome3d.model.Room;
+import com.eteks.sweethome3d.model.UserPreferences;
 import com.eteks.sweethome3d.model.Wall;
 import com.sun.j3d.utils.geometry.Box;
 import com.sun.j3d.utils.geometry.GeometryInfo;
@@ -91,7 +92,21 @@ public class Ground3D extends Object3DBranch {
                   float width,
                   float depth,
                   boolean waitTextureLoadingEnd) {
-    setUserData(home);
+    this(home, null, home, originX, originY, width, depth, waitTextureLoadingEnd);
+  }
+
+  /**
+   * Creates a 3D ground for the given <code>home</code>.
+   */
+  public Ground3D(Home home,
+                  UserPreferences preferences,
+                  Object context,
+                  float originX,
+                  float originY,
+                  float width,
+                  float depth,
+                  boolean waitTextureLoadingEnd) {
+    super(home, home, preferences, context);
     this.originX = originX;
     this.originY = originY;
     this.width = width;
@@ -199,7 +214,7 @@ public class Ground3D extends Object3DBranch {
                   backgroundImageTransform.setScale(new Vector3d(imageWidth, 1, imageHeight));
                   backgroundImageTransform.setTranslation(new Vector3d(imageWidth / 2 - displayedBackgroundImage.getXOrigin(), 0f,
                       imageHeight / 2 - displayedBackgroundImage.getYOrigin()));
-                  backgroundImageAppearance.setTexture(getHomeTextureClone(texture, home));
+                  backgroundImageAppearance.setTexture(getContextTexture(texture, getContext()));
                   backgroundImageGroup.setTransform(backgroundImageTransform);
                   updateGround(waitTextureLoadingEnd,
                       new Rectangle2D.Float(-displayedBackgroundImage.getXOrigin(), -displayedBackgroundImage.getYOrigin(), imageWidth, imageHeight));
@@ -236,7 +251,7 @@ public class Ground3D extends Object3DBranch {
       textureManager.loadTexture(groundTexture.getImage(), waitTextureLoadingEnd,
           new TextureManager.TextureObserver() {
               public void textureUpdated(Texture texture) {
-                groundAppearance.setTexture(getHomeTextureClone(texture, home));
+                groundAppearance.setTexture(getContextTexture(texture, getContext()));
                 TransparencyAttributes transparencyAttributes = groundAppearance.getTransparencyAttributes();
                 // If texture isn't transparent, turn off transparency
                 transparencyAttributes.setTransparencyMode(TextureManager.getInstance().isTextureTransparent(texture)
@@ -302,7 +317,14 @@ public class Ground3D extends Object3DBranch {
     // Sort underground areas in the reverse order of level elevation
     Collections.sort(undergroundAreas, new Comparator<LevelAreas>() {
         public int compare(LevelAreas levelAreas1, LevelAreas levelAreas2) {
-          return -Float.compare(levelAreas1.getLevel().getElevation(), levelAreas2.getLevel().getElevation());
+          Level level1 = levelAreas1.getLevel();
+          Level level2 = levelAreas2.getLevel();
+          int elevationComparison = -Float.compare(level1.getElevation(), level2.getElevation());
+          if (elevationComparison != 0) {
+            return elevationComparison;
+          } else {
+            return level1.getElevationIndex() - level2.getElevationIndex();
+          }
         }
       });
     for (LevelAreas levelAreas : undergroundAreas) {

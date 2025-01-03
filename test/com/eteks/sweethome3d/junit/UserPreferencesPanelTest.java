@@ -1,7 +1,7 @@
 /*
  * UserPreferencesPanelTest.java 23 sept. 2006
  *
- * Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>. All Rights Reserved.
+ * Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
  */
 package com.eteks.sweethome3d.junit;
 
+import java.text.DecimalFormatSymbols;
 import java.text.ParseException;
 import java.text.ParsePosition;
 import java.util.Locale;
@@ -31,10 +32,9 @@ import javax.swing.JSpinner;
 import javax.swing.JSpinner.DefaultEditor;
 import javax.swing.undo.UndoableEditSupport;
 
-import junit.framework.TestCase;
-
 import com.eteks.sweethome3d.io.DefaultUserPreferences;
 import com.eteks.sweethome3d.io.FileUserPreferences;
+import com.eteks.sweethome3d.j3d.PhotoRenderer;
 import com.eteks.sweethome3d.model.BackgroundImage;
 import com.eteks.sweethome3d.model.Content;
 import com.eteks.sweethome3d.model.Home;
@@ -48,6 +48,7 @@ import com.eteks.sweethome3d.tools.OperatingSystem;
 import com.eteks.sweethome3d.tools.URLContent;
 import com.eteks.sweethome3d.viewcontroller.BackgroundImageWizardController;
 import com.eteks.sweethome3d.viewcontroller.CompassController;
+import com.eteks.sweethome3d.viewcontroller.DimensionLineController;
 import com.eteks.sweethome3d.viewcontroller.FurnitureCatalogController;
 import com.eteks.sweethome3d.viewcontroller.FurnitureController;
 import com.eteks.sweethome3d.viewcontroller.HelpController;
@@ -72,6 +73,9 @@ import com.eteks.sweethome3d.viewcontroller.ThreadedTaskController;
 import com.eteks.sweethome3d.viewcontroller.UserPreferencesController;
 import com.eteks.sweethome3d.viewcontroller.VideoController;
 import com.eteks.sweethome3d.viewcontroller.WallController;
+
+import junit.framework.ComparisonFailure;
+import junit.framework.TestCase;
 
 /**
  * Tests {@link com.eteks.sweethome3d.swing.UserPreferencesPanel user preferences panel}.
@@ -154,7 +158,8 @@ public class UserPreferencesPanelTest extends TestCase {
     catalogIconRadioButton.setSelected(true);
     monochromeRadioButton.setSelected(true);
     ((DefaultEditor)newWallThicknessSpinner.getEditor()).getTextField().setText("1\u215C\"");
-    ((DefaultEditor)newHomeWallHeightSpinner.getEditor()).getTextField().setText("8'4,25");
+    char decimalSeparator = new DecimalFormatSymbols(new Locale(preferences.getLanguage())).getDecimalSeparator();
+    ((DefaultEditor)newHomeWallHeightSpinner.getEditor()).getTextField().setText("8'4" + decimalSeparator + "25");
 
     // 4. Retrieve panel values into preferences
     controller.modifyUserPreferences();
@@ -221,8 +226,12 @@ public class UserPreferencesPanelTest extends TestCase {
     // Test formats without unit
     assertEquals("Wrong conversion", "102", LengthUnit.CENTIMETER.getFormat().format(102));
     assertEquals("Wrong conversion", "1,02", LengthUnit.METER.getFormat().format(102));
-    // \u00a0 is a no-break space
-    assertEquals("Wrong conversion", "1\u00a0020", LengthUnit.MILLIMETER.getFormat().format(102));
+    // \u00a0 and \u202f are a no-break spaces and are different depending on Java version
+    try {
+      assertEquals("Wrong conversion", "1\u00a0020", LengthUnit.MILLIMETER.getFormat().format(102));
+    } catch (ComparisonFailure ex) {
+      assertEquals("Wrong conversion", "1\u202f020", LengthUnit.MILLIMETER.getFormat().format(102));
+    }
     assertEquals("Wrong conversion", "0'11\"",
         LengthUnit.INCH.getFormat().format(LengthUnit.inchToCentimeter(11)));
     assertEquals("Wrong conversion", "1'11\"",
@@ -237,18 +246,42 @@ public class UserPreferencesPanelTest extends TestCase {
         LengthUnit.INCH.getFormatWithUnit().format(LengthUnit.inchToCentimeter(-0.125f)));
     assertEquals("Wrong conversion", "-1'",
         LengthUnit.INCH.getFormatWithUnit().format(LengthUnit.inchToCentimeter(-12)));
+    assertEquals("Wrong conversion", "11\"",
+        LengthUnit.INCH_FRACTION.getFormat().format(LengthUnit.inchToCentimeter(11)));
+    assertEquals("Wrong conversion", "23\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(11 + 12)));
+    assertEquals("Wrong conversion", "23\u215b\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(11 + 12 + 0.125f)));
+    assertEquals("Wrong conversion", "-23\u215b\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(-(11 + 12 + 0.125f))));
+    assertEquals("Wrong conversion", "-11\u215b\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(-(11 + 0.125f))));
+    assertEquals("Wrong conversion", "-0\u215b\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(-0.125f)));
+    assertEquals("Wrong conversion", "-12\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(-12)));
+    assertEquals("Wrong conversion", "-12\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(-12 - 0.05f)));
+    assertEquals("Wrong conversion", "-12\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(-12 + 0.05f)));
 
     // Test formats with unit
     assertEquals("Wrong conversion", "102 cm", LengthUnit.CENTIMETER.getFormatWithUnit().format(102));
     assertEquals("Wrong conversion", "1,02 m", LengthUnit.METER.getFormatWithUnit().format(102));
-    // \u00a0 is a no-break space
-    assertEquals("Wrong conversion", "1\u00a0020 mm", LengthUnit.MILLIMETER.getFormatWithUnit().format(102));
+    // \u00a0 and \u202f are a no-break spaces
+    try {
+      assertEquals("Wrong conversion", "1\u00a0020 mm", LengthUnit.MILLIMETER.getFormatWithUnit().format(102));
+    } catch (ComparisonFailure ex) {
+      assertEquals("Wrong conversion", "1\u202f020 mm", LengthUnit.MILLIMETER.getFormatWithUnit().format(102));
+    }
     assertEquals("Wrong conversion", "0'11\"",
         LengthUnit.INCH.getFormatWithUnit().format(LengthUnit.inchToCentimeter(11)));
     assertEquals("Wrong conversion", "1'11\"",
         LengthUnit.INCH.getFormatWithUnit().format(LengthUnit.inchToCentimeter(11 + 12)));
     assertEquals("Wrong conversion", "1'11\u215b\"",
         LengthUnit.INCH.getFormatWithUnit().format(LengthUnit.inchToCentimeter(11 + 12 + 0.125f)));
+    assertEquals("Wrong conversion", "11\"",
+        LengthUnit.INCH_FRACTION.getFormatWithUnit().format(LengthUnit.inchToCentimeter(11)));
 
     // Test parsing
     assertEquals("Wrong parsing", 102f, LengthUnit.CENTIMETER.getFormat().parseObject("102"));
@@ -258,6 +291,10 @@ public class UserPreferencesPanelTest extends TestCase {
         ((Number)LengthUnit.INCH_DECIMALS.getFormat().parseObject("0,125")).floatValue(), 1E-10f);
     assertEquals("Wrong conversion",  LengthUnit.inchToCentimeter(0.125f),
         ((Number)LengthUnit.INCH_DECIMALS.getFormat().parseObject("0,125\"")).floatValue(), 1E-10f);
+    assertEquals("Wrong conversion",  LengthUnit.inchToCentimeter(0.125f),
+        ((Number)LengthUnit.FOOT_DECIMALS.getFormat().parseObject("0,0104167")).floatValue(), 1E-5f);
+    assertEquals("Wrong conversion",  LengthUnit.inchToCentimeter(0.125f),
+        ((Number)LengthUnit.FOOT_DECIMALS.getFormat().parseObject("0,0104167\'")).floatValue(), 1E-5f);
     assertEquals("Wrong conversion",  LengthUnit.inchToCentimeter(11),
         ((Number)LengthUnit.INCH.getFormat().parseObject("0'11\"")).floatValue(), 1E-10f);
     assertEquals("Wrong conversion",  LengthUnit.inchToCentimeter(10 + 12),
@@ -333,6 +370,7 @@ public class UserPreferencesPanelTest extends TestCase {
    * Tests language changes on the GUI.
    */
   public void testLanguageChange() {
+    System.setProperty("com.eteks.sweethome3d.j3d.rendererClassNames", PhotoRenderer.class.getName());
     Locale defaultLocale = Locale.getDefault();
     Locale.setDefault(Locale.US);
     UserPreferences preferences = new DefaultUserPreferences() {
@@ -371,6 +409,7 @@ public class UserPreferencesPanelTest extends TestCase {
       new WallController(home, preferences, viewFactory, contentManager, undoableEditSupport).getView();
       new RoomController(home, preferences, viewFactory, contentManager, undoableEditSupport).getView();
       new PolylineController(home, preferences, viewFactory, contentManager, undoableEditSupport).getView();
+      new DimensionLineController(home, preferences, viewFactory, undoableEditSupport).getView();
       new LabelController(home, preferences, viewFactory, undoableEditSupport).getView();
       new CompassController(home, preferences, viewFactory, undoableEditSupport).getView();
       new ObserverCameraController(home, preferences, viewFactory).getView();

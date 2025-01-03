@@ -1,7 +1,7 @@
 /*
  * Home3DAttributesPanel.java 25 juin 07
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -106,9 +106,9 @@ public class Home3DAttributesPanel extends JPanel implements DialogView {
         });
 
     this.groundColorButton = new ColorButton(preferences);
+    this.groundColorButton.setColor(controller.getGroundColor());
     this.groundColorButton.setColorDialogTitle(preferences.getLocalizedString(
         Home3DAttributesPanel.class, "groundColorDialog.title"));
-    this.groundColorButton.setColor(controller.getGroundColor());
     this.groundColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
         new PropertyChangeListener() {
           public void propertyChange(PropertyChangeEvent ev) {
@@ -173,9 +173,9 @@ public class Home3DAttributesPanel extends JPanel implements DialogView {
         });
 
     this.skyColorButton = new ColorButton(preferences);
+    this.skyColorButton.setColor(controller.getSkyColor());
     this.skyColorButton.setColorDialogTitle(preferences.getLocalizedString(
         Home3DAttributesPanel.class, "skyColorDialog.title"));
-    this.skyColorButton.setColor(controller.getSkyColor());
     this.skyColorButton.addPropertyChangeListener(ColorButton.COLOR_PROPERTY,
         new PropertyChangeListener() {
           public void propertyChange(PropertyChangeEvent ev) {

@@ -1,7 +1,7 @@
 /*
  * ImportedTextureWizardTest.java 07 Oct. 2008
  * 
- * Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>. All Rights Reserved.
+ * Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  * 
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -370,7 +370,7 @@ public class ImportedTextureWizardTest extends ComponentTestFixture {
                 TextureChoiceComponent.class, "deleteTextureButton.text"));
           }
         });
-    tester.invokeAndWait(new Runnable() { 
+    tester.invokeLater(new Runnable() { 
         public void run() {
           // Display confirm dialog box later in Event Dispatch Thread to avoid blocking test thread
           deleteButton.doClick();        

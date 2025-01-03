@@ -1,7 +1,7 @@
 /*
  * SwingTools.java 21 oct. 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ import java.awt.GraphicsEnvironment;
 import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.Insets;
+import java.awt.KeyboardFocusManager;
 import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -57,6 +58,7 @@ import java.awt.image.FilteredImageSource;
 import java.awt.image.RGBImageFilter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.AccessControlException;
 import java.util.ArrayList;
@@ -67,6 +69,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.concurrent.Executors;
@@ -95,6 +98,7 @@ import javax.swing.JSeparator;
 import javax.swing.JToggleButton;
 import javax.swing.JToolTip;
 import javax.swing.JViewport;
+import javax.swing.RootPaneContainer;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.ToolTipManager;
@@ -121,6 +125,8 @@ public class SwingTools {
   // Borders for focused views
   private static Border unfocusedViewBorder;
   private static Border focusedViewBorder;
+
+  private static Map<String, Font> defaultComponentFonts;
 
   private SwingTools() {
     // This class contains only tools
@@ -282,6 +288,32 @@ public class SwingTools {
       updateSwingResourceBundle("com.sun.java.swing.plaf.gtk.resources.gtk", classLoaders, language);
     } else if (UIManager.getLookAndFeel().getClass().getName().equals("com.sun.java.swing.plaf.motif.MotifLookAndFeel")) {
       updateSwingResourceBundle("com.sun.java.swing.plaf.motif.resources.motif", classLoaders, language);
+    }
+
+    if (!OperatingSystem.isMacOSX()) {
+      if ("th".equals(Locale.getDefault().getLanguage())) {
+        // Replace the font of components which use Segoe UI where Thai characters are missing
+        String [] uiComponentFontProperties = {
+            "OptionPane.messageFont", "OptionPane.buttonFont", "OptionPane.font", "ToolTip.font",
+            "MenuBar.font", "Menu.font", "MenuItem.font", "RadioButtonMenuItem.font", "CheckBoxMenuItem.font",
+            "Menu.acceleratorFont", "MenuItem.acceleratorFont", "RadioButtonMenuItem.acceleratorFont", "CheckBoxMenuItem.acceleratorFont"};
+        Font labelFont = UIManager.getFont("Label.font");
+        for (String uiComponentFontProperty : uiComponentFontProperties) {
+          Font uiComponentFont = UIManager.getFont(uiComponentFontProperty);
+          if (uiComponentFont != null && "Segoe UI".equals(uiComponentFont.getFamily())) {
+            if (defaultComponentFonts == null) {
+              defaultComponentFonts = new HashMap<String, Font>();
+            }
+            defaultComponentFonts.put(uiComponentFontProperty, uiComponentFont);
+            UIManager.put(uiComponentFontProperty, labelFont.deriveFont(uiComponentFont.getStyle(), uiComponentFont.getSize()));
+          }
+        }
+      } else if (defaultComponentFonts != null) {
+        for (Map.Entry<String, Font> defaultComponentFont : defaultComponentFonts.entrySet()) {
+          UIManager.put(defaultComponentFont.getKey(), defaultComponentFont.getValue());
+        }
+        defaultComponentFonts = null;
+      }
     }
   }
 
@@ -455,32 +487,138 @@ public class SwingTools {
                                       JComponent messageComponent,
                                       String title,
                                       final JComponent focusedComponent) {
-    JOptionPane optionPane = new JOptionPane(messageComponent,
-        JOptionPane.PLAIN_MESSAGE, JOptionPane.OK_CANCEL_OPTION);
-    parentComponent = SwingUtilities.getRootPane(parentComponent);
-    final JDialog dialog = optionPane.createDialog(parentComponent, title);
-    dialog.applyComponentOrientation(parentComponent != null
-        ? parentComponent.getComponentOrientation()
-        : ComponentOrientation.getOrientation(Locale.getDefault()));
-    if (focusedComponent != null) {
-      // Add a listener that transfer focus to focusedComponent when dialog is shown
-      dialog.addComponentListener(new ComponentAdapter() {
-          @Override
-          public void componentShown(ComponentEvent ev) {
-            requestFocusInWindow(focusedComponent);
-            dialog.removeComponentListener(this);
-          }
-        });
-    }
-    dialog.setVisible(true);
+    return showOptionDialog(parentComponent, messageComponent, title,
+        JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null, null, focusedComponent);
+  }
 
-    dialog.dispose();
-    Object value = optionPane.getValue();
-    if (value instanceof Integer) {
-      return (Integer)value;
-    } else {
-      return JOptionPane.CLOSED_OPTION;
+  /**
+   * Displays <code>message</code> in a modal dialog box.
+   */
+  public static void showMessageDialog(JComponent parentComponent,
+                                       Object message,
+                                       String title,
+                                       int messageType) {
+    showOptionDialog(parentComponent, message, title, JOptionPane.DEFAULT_OPTION, messageType, null, null, null);
+  }
+
+  /**
+   * Displays <code>messageComponent</code> in a modal dialog box, giving focus to one of its components.
+   */
+  public static void showMessageDialog(JComponent parentComponent,
+                                       JComponent messageComponent,
+                                       String title,
+                                       int messageType,
+                                       final JComponent focusedComponent) {
+    showOptionDialog(parentComponent, messageComponent, title, JOptionPane.DEFAULT_OPTION, messageType, null, null, focusedComponent);
+  }
+
+  /**
+   * Displays message in a dialog box, possibly adjusting font size if required.
+   */
+  public static int showOptionDialog(Component parentComponent,
+                                     String message, String title,
+                                     int optionType, int messageType,
+                                     Object[] options, Object initialValue) {
+    if (SwingTools.getResolutionScale() > 1
+        && message.indexOf("<font size=\"-2\">") != -1) {
+      Font font = UIManager.getFont("OptionPane.font");
+      if (font != null) {
+        message = message.replace("<font size=\"-2\">", "<font size=\"" + Math.round(font.getSize() / 5f) + "\">");
+      }
     }
+    return showOptionDialog(parentComponent, message, title, optionType, messageType, options, initialValue, null);
+  }
+
+  /**
+   * Displays message in a dialog box.
+   */
+  private static int showOptionDialog(Component parentComponent,
+                                      Object message, String title,
+                                      int optionType, int messageType,
+                                      Object[] options, Object initialValue,
+                                      final JComponent focusedComponent) {
+   JOptionPane optionPane = new JOptionPane(message,
+       messageType, optionType, null, options, initialValue);
+   parentComponent = getDialogParent(parentComponent);
+   final JDialog dialog = optionPane.createDialog(parentComponent, title);
+   dialog.applyComponentOrientation(parentComponent != null
+       ? parentComponent.getComponentOrientation()
+       : ComponentOrientation.getOrientation(Locale.getDefault()));
+   if (focusedComponent != null) {
+     // Add a listener that transfer focus to focusedComponent when dialog is shown
+     dialog.addComponentListener(new ComponentAdapter() {
+         @Override
+         public void componentShown(ComponentEvent ev) {
+           requestFocusInWindow(focusedComponent);
+           dialog.removeComponentListener(this);
+         }
+       });
+   }
+
+   Map<JDialog, Rectangle> childDialogBounds = new HashMap<JDialog, Rectangle>();
+   if (OperatingSystem.isMacOSX()
+       && OperatingSystem.isJavaVersionGreaterOrEqual("1.7")) {
+     // Move not modal dialogs away to ensure the option pane dialog won't be hidden by them
+     Rectangle optionPaneDialogBounds = dialog.getBounds();
+     Window parentWindow = (Window)dialog.getParent();
+     for (Window childWindow : parentWindow.getOwnedWindows()) {
+       if (dialog != childWindow) {
+         if (childWindow instanceof JDialog
+             && childWindow.isVisible()
+             && !((JDialog)childWindow).isModal()) {
+           Rectangle bounds = childWindow.getBounds();
+           if (bounds.intersects(optionPaneDialogBounds)) {
+             childWindow.setLocation(optionPaneDialogBounds.x + optionPaneDialogBounds.width + 10, bounds.y);
+             childDialogBounds.put((JDialog)childWindow, bounds);
+           }
+         }
+       }
+     }
+   }
+
+   try {
+     dialog.setVisible(true);
+   } finally {
+     // Restore location of moved dialogs
+     for (Entry<JDialog, Rectangle> childDialogEntry : childDialogBounds.entrySet()) {
+       childDialogEntry.getKey().setBounds(childDialogEntry.getValue());
+     }
+   }
+
+   dialog.dispose();
+   Object value = optionPane.getValue();
+   if (value != null) {
+     if (options != null) {
+       for (int i = 0; i < options.length; i++) {
+          if (value.equals(options [i])) {
+            return i;
+          }
+        }
+      } else {
+        if (value instanceof Integer) {
+          return (Integer)value;
+        }
+      }
+    }
+    return JOptionPane.CLOSED_OPTION;
+  }
+
+  /**
+   * Returns the parent of the given component which may be used as dialog parent.
+   */
+  private static JComponent getDialogParent(Component component) {
+    JComponent parentComponent = SwingUtilities.getRootPane(component);
+    if (OperatingSystem.isMacOSX()) {
+      if (parentComponent == null
+          || SwingUtilities.getWindowAncestor(parentComponent) == null) {
+        // Use active window if possible to ensure the dialog will be displayed in front of current window
+        Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
+        if (activeWindow instanceof RootPaneContainer) {
+          parentComponent = ((RootPaneContainer)activeWindow).getRootPane();
+        }
+      }
+    }
+    return parentComponent;
   }
 
   /**
@@ -498,52 +636,6 @@ public class SwingTools {
         }).start();
     }
   }
-
-  /**
-   * Displays <code>messageComponent</code> in a modal dialog box, giving focus to one of its components.
-   */
-  public static void showMessageDialog(JComponent parentComponent,
-                                       JComponent messageComponent,
-                                       String title,
-                                       int messageType,
-                                       final JComponent focusedComponent) {
-    JOptionPane optionPane = new JOptionPane(messageComponent, messageType, JOptionPane.DEFAULT_OPTION);
-    parentComponent = SwingUtilities.getRootPane(parentComponent);
-    final JDialog dialog = optionPane.createDialog(parentComponent, title);
-    dialog.applyComponentOrientation(parentComponent != null
-        ? parentComponent.getComponentOrientation()
-        : ComponentOrientation.getOrientation(Locale.getDefault()));
-    if (focusedComponent != null) {
-      // Add a listener that transfer focus to focusedComponent when dialog is shown
-      dialog.addComponentListener(new ComponentAdapter() {
-          @Override
-          public void componentShown(ComponentEvent ev) {
-            requestFocusInWindow(focusedComponent);
-            dialog.removeComponentListener(this);
-          }
-        });
-    }
-    dialog.setVisible(true);
-    dialog.dispose();
-  }
-
-  /**
-   * Displays message in a dialog box, possibly adjusting font size if required.
-   */
-  public static int showOptionDialog(Component parentComponent,
-                                     String message, String title,
-                                     int optionType, int messageType,
-                                     Object[] options, Object initialValue) {
-   if (SwingTools.getResolutionScale() > 1
-       && message.indexOf("<font size=\"-2\">") != -1) {
-     Font font = UIManager.getFont("OptionPane.font");
-     if (font != null) {
-       message = message.replace("<font size=\"-2\">", "<font size=\"" + Math.round(font.getSize() / 5f) + "\">");
-     }
-   }
-   return JOptionPane.showOptionDialog(parentComponent, message, title, optionType,
-       messageType, null, options, initialValue);
- }
 
   private static Map<TextureImage, BufferedImage> patternImages;
 
@@ -612,68 +704,64 @@ public class SwingTools {
    * If the <code>imageUrl</code> is incorrect, nothing happens.
    */
   public static void showSplashScreenWindow(URL imageUrl) {
-    try {
-      final BufferedImage image = ImageIO.read(imageUrl);
-      // Try to find an image scale without getResolutionScale()
-      // because look and feel is probably not set yet
-      Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-      final float scale = OperatingSystem.isMacOSX()
-          ? 1f
-          : (float)Math.min(2, Math.max(1, Math.min(screenSize.getWidth() / 5 / image.getWidth(), screenSize.getHeight() / 5 / image.getHeight())));
-      final Window splashScreenWindow = new Window(new Frame()) {
-          @Override
-          public void paint(Graphics g) {
-            ((Graphics2D)g).scale(scale, scale);
-            g.drawImage(image, 0, 0, this);
-          }
-        };
+    final ImageIcon image = getImageIcon(imageUrl);
+    // Try to find an image scale without getResolutionScale()
+    // because look and feel is probably not set yet
+    Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+    final float scale = OperatingSystem.isMacOSX() || OperatingSystem.isJavaVersionGreaterOrEqual("1.9")
+        ? 1f
+        : (float)Math.min(2, Math.max(1, Math.min(screenSize.getWidth() / 4 / image.getIconWidth(), screenSize.getHeight() / 4 / image.getIconHeight())));
+    final Window splashScreenWindow = new Window(new Frame()) {
+        @Override
+        public void paint(Graphics g) {
+          ((Graphics2D)g).scale(scale, scale);
+          image.paintIcon(this, g, 0, 0);
+        }
+      };
 
-      splashScreenWindow.setSize((int)(image.getWidth() * scale), (int)(image.getHeight() * scale));
-      splashScreenWindow.setLocationRelativeTo(null);
-      splashScreenWindow.setVisible(true);
+    splashScreenWindow.setSize((int)(image.getIconWidth() * scale), (int)(image.getIconHeight() * scale));
+    splashScreenWindow.setLocationRelativeTo(null);
+    splashScreenWindow.setVisible(true);
 
-      Executors.newSingleThreadExecutor().execute(new Runnable() {
-          public void run() {
-            try {
-              Thread.sleep(500);
-              while (splashScreenWindow.isVisible()) {
-                EventQueue.invokeLater(new Runnable() {
-                    public void run() {
-                      // If a JFrame or JDialog is showing, dispose splash window
-                      try {
-                        for (Window window : (Window[])Window.class.getMethod("getWindows").invoke(null)) {
-                          if ((window instanceof JFrame || window instanceof JDialog)
-                              && window.isShowing()) {
-                            splashScreenWindow.dispose();
-                            break;
-                          }
+    Executors.newSingleThreadExecutor().execute(new Runnable() {
+        public void run() {
+          try {
+            Thread.sleep(500);
+            while (splashScreenWindow.isVisible()) {
+              EventQueue.invokeLater(new Runnable() {
+                  public void run() {
+                    // If a JFrame or JDialog is showing, dispose splash window
+                    try {
+                      for (Window window : (Window[])Window.class.getMethod("getWindows").invoke(null)) {
+                        if ((window instanceof JFrame || window instanceof JDialog)
+                            && window.isShowing()) {
+                          splashScreenWindow.dispose();
+                          break;
                         }
-                      } catch (Exception ex) {
-                        // Even if splash screen will disappear quicker,
-                        // use Frame#getFrames under Java 1.5 where Window#getWindows doesn't exist
-                        for (Frame frame : Frame.getFrames()) {
-                          if (frame.isShowing()) {
-                            splashScreenWindow.dispose();
-                            break;
-                          }
+                      }
+                    } catch (Exception ex) {
+                      // Even if splash screen will disappear quicker,
+                      // use Frame#getFrames under Java 1.5 where Window#getWindows doesn't exist
+                      for (Frame frame : Frame.getFrames()) {
+                        if (frame.isShowing()) {
+                          splashScreenWindow.dispose();
+                          break;
                         }
                       }
                     }
-                  });
-                Thread.sleep(200);
+                  }
+                });
+              Thread.sleep(200);
+            }
+          } catch (InterruptedException ex) {
+            EventQueue.invokeLater(new Runnable() {
+              public void run() {
+                splashScreenWindow.dispose();
               }
-            } catch (InterruptedException ex) {
-              EventQueue.invokeLater(new Runnable() {
-                public void run() {
-                  splashScreenWindow.dispose();
-                }
-              });
-            };
-          }
-        });
-    } catch (IOException ex) {
-      // Ignore splash screen
-    }
+            });
+          };
+        }
+      });
   }
 
   /**
@@ -889,7 +977,7 @@ public class SwingTools {
   }
 
   /**
-   * Separated static class to be able to exclude JNLP library from classpath.
+   * Separate static class to be able to exclude JNLP library from classpath.
    */
   private static class BrowserSupport {
     public static boolean showDocumentInBrowser(URL url) {
@@ -1014,7 +1102,7 @@ public class SwingTools {
                                  Polyline.CapStyle capStyle,
                                  Polyline.JoinStyle joinStyle,
                                  Polyline.DashStyle dashStyle) {
-    return ShapeTools.getStroke(thickness, capStyle, joinStyle, dashStyle.getDashPattern(), 0);
+    return ShapeTools.getStroke(thickness, capStyle, joinStyle, dashStyle != Polyline.DashStyle.SOLID ? dashStyle.getDashPattern() : null, 0);
   }
 
   private static Float defaultResolutionScale;
@@ -1058,6 +1146,47 @@ public class SwingTools {
       }
     }
 
+    try {
+      // Fix too small win.defaultGUI.font under Windows 11 HiDPI
+      // (can't rely on "os.version" which has not been updated at Windows 11 release time)
+      if (!Boolean.getBoolean("com.eteks.sweethome3d.ignoreDefaultGUIFont")
+          && OperatingSystem.isWindows()
+          && OperatingSystem.isJavaVersionGreaterOrEqual("1.9")
+          && UIManager.getLookAndFeel().getClass().isAssignableFrom(Class.forName(UIManager.getSystemLookAndFeelClassName()))) {
+        int menuFontSize = UIManager.getFont("Menu.font").getSize();
+        int labelFontSize = UIManager.getFont("Label.font").getSize();
+        if (labelFontSize < 10
+            && Math.abs(labelFontSize - menuFontSize) / (float)menuFontSize > 0.2) {
+          float scale = (float)menuFontSize / labelFontSize * 11 / 12; // Menu font is a little larger under Windows
+          updateComponentFontSize("Button.font", scale);
+          updateComponentFontSize("ToggleButton.font", scale);
+          updateComponentFontSize("RadioButton.font", scale);
+          updateComponentFontSize("CheckBox.font", scale);
+          updateComponentFontSize("ComboBox.font", scale);
+          updateComponentFontSize("Label.font", scale);
+          updateComponentFontSize("List.font", scale);
+          updateComponentFontSize("Panel.font", scale);
+          updateComponentFontSize("ProgressBar.font", scale);
+          updateComponentFontSize("ScrollPane.font", scale);
+          updateComponentFontSize("Viewport.font", scale);
+          updateComponentFontSize("Slider.font", scale);
+          updateComponentFontSize("Spinner.font", scale);
+          updateComponentFontSize("Table.font", scale);
+          updateComponentFontSize("TabbedPane.font", scale);
+          updateComponentFontSize("TableHeader.font", scale);
+          updateComponentFontSize("TextField.font", scale);
+          updateComponentFontSize("FormattedTextField.font", scale);
+          updateComponentFontSize("PasswordField.font", scale);
+          updateComponentFontSize("TextPane.font", scale);
+          updateComponentFontSize("EditorPane.font", scale);
+          updateComponentFontSize("TitledBorder.font", scale);
+          updateComponentFontSize("Tree.font", scale);
+        }
+      }
+    } catch (ClassNotFoundException ex) {
+      // Issue with LAF classes
+    }
+
     float userResolutionScale = getUserResolutionScale();
     if (userResolutionScale != 1) {
       Font buttonFont = updateComponentFontSize("Button.font", userResolutionScale);
@@ -1093,6 +1222,7 @@ public class SwingTools {
       updateComponentFontSize("FormattedTextField.font", userResolutionScale);
       updateComponentFontSize("PasswordField.font", userResolutionScale);
       updateComponentFontSize("TextArea.font", userResolutionScale);
+      updateComponentFontSize("TextPane.font", userResolutionScale);
       updateComponentFontSize("EditorPane.font", userResolutionScale);
       updateComponentFontSize("TitledBorder.font", userResolutionScale);
       updateComponentFontSize("ToolBar.font", userResolutionScale);
@@ -1101,7 +1231,16 @@ public class SwingTools {
       UIManager.put("OptionPane.messageFont", labelFont);
       UIManager.put("OptionPane.buttonFont", buttonFont);
     }
+
     updateComponentSize("SplitPane.dividerSize", getResolutionScale());
+    try {
+      if (OperatingSystem.isWindows()
+          && UIManager.getLookAndFeel().getClass().isAssignableFrom(Class.forName(UIManager.getSystemLookAndFeelClassName()))) {
+        updateComponentSize("SplitPane.dividerSize", 1.25f);
+      }
+    } catch (ClassNotFoundException ex) {
+      // Issue with LAF classes
+    }
   }
 
   private static Font updateComponentFontSize(String fontKey, float resolutionScale) {
@@ -1140,8 +1279,6 @@ public class SwingTools {
       String resolutionScaleProperty = System.getProperty("com.eteks.sweethome3d.resolutionScale");
       if (resolutionScaleProperty != null) {
         return Float.parseFloat(resolutionScaleProperty.trim());
-      } else {
-
       }
     } catch (AccessControlException ex) {
     } catch (NumberFormatException ex) {
@@ -1156,16 +1293,70 @@ public class SwingTools {
   public static ImageIcon getScaledImageIcon(URL imageUrl) {
     float resolutionScale = getResolutionScale();
     if (resolutionScale == 1) {
-      return new ImageIcon(imageUrl);
+      return getImageIcon(imageUrl);
     } else {
+      if (resolutionScale == 2) {
+        BufferedImage image = getImageAtScale(imageUrl, 2);
+        if (image != null) {
+          return new ImageIcon(image);
+        }
+      }
       try {
-        BufferedImage image = ImageIO.read(imageUrl);
-        Image scaledImage = image.getScaledInstance(Math.round(image.getWidth() * resolutionScale),
-            Math.round(image.getHeight() * resolutionScale), Image.SCALE_SMOOTH);
+        BufferedImage image = null;
+        float imageScale;
+        if (resolutionScale > 2) {
+          image = getImageAtScale(imageUrl, 2);
+        }
+        if (image == null) {
+          image = ImageIO.read(imageUrl);
+          imageScale = resolutionScale;
+        } else {
+          imageScale = resolutionScale / 2;
+        }
+        Image scaledImage = image.getScaledInstance(Math.round(image.getWidth() * imageScale),
+            Math.round(image.getHeight() * imageScale), Image.SCALE_SMOOTH);
         return new ImageIcon(scaledImage);
       } catch (IOException ex) {
         return null;
       }
     }
+  }
+
+  /**
+   * Returns the image icon matching the given URL, possibly managing a multi resolution when possible.
+   */
+  private static ImageIcon getImageIcon(URL imageUrl) {
+    if (OperatingSystem.isJavaVersionGreaterOrEqual("1.9")
+        && !OperatingSystem.isMacOSX()) {
+      Image image2x = getImageAtScale(imageUrl, 2);
+      if (image2x != null) {
+        // Instantiate Java 9 BaseMultiResolutionImage class by reflection
+        // (under Mac OS X, it's the default behavior)
+        try {
+          return new ImageIcon((Image)Class.forName("java.awt.image.BaseMultiResolutionImage").getConstructor(Image[].class).
+              newInstance((Object)new Image[] {ImageIO.read(imageUrl), image2x}));
+        } catch (IOException ex) {
+        } catch (Exception ex) {
+          ex.printStackTrace();
+        }
+      }
+    }
+    return new ImageIcon(imageUrl);
+  }
+
+  /**
+   * Returns the image at the given scale from its suffix @2x, @3x...
+   */
+  private static BufferedImage getImageAtScale(URL imageUrl, int scale) {
+    try {
+      String file = imageUrl.toString();
+      int pointIndex = file.lastIndexOf('.');
+      if (pointIndex >= 0) {
+        return ImageIO.read(new URL(file.substring(0, pointIndex) + "@" + scale + "x" + file.substring(pointIndex)));
+      }
+    } catch (MalformedURLException ex) {
+    } catch (IOException ex) {
+    }
+    return null;
   }
 }

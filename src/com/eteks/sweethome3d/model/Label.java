@@ -1,7 +1,7 @@
 /*
  * Label.java 28 nov. 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ import java.awt.geom.Rectangle2D;
 /**
  * A free label.
  * @author Emmanuel Puybaret
+ * @since 1.5
  */
 public class Label extends HomeObject implements Selectable, Elevatable {
   private static final long serialVersionUID = 1L;
@@ -294,14 +295,23 @@ public class Label extends HomeObject implements Selectable, Elevatable {
 
   /**
    * Returns <code>true</code> if this label is at the given <code>level</code>
-   * or at a level with the same elevation and a smaller elevation index.
+   * or at a level with the same elevation and a smaller elevation index
+   * or if the elevation of this label is higher than <code>level</code> elevation.
    * @since 3.4
    */
   public boolean isAtLevel(Level level) {
-    return this.level == level
-        || this.level != null && level != null
-           && this.level.getElevation() == level.getElevation()
-           && this.level.getElevationIndex() < level.getElevationIndex();
+    if (this.level == level) {
+      return true;
+    } else if (this.level != null && level != null) {
+      float labelLevelElevation = this.level.getElevation();
+      float levelElevation = level.getElevation();
+      return labelLevelElevation == levelElevation
+             && this.level.getElevationIndex() < level.getElevationIndex()
+          || labelLevelElevation < levelElevation
+             && labelLevelElevation + this.elevation > levelElevation;
+    } else {
+      return false;
+    }
   }
 
   /**

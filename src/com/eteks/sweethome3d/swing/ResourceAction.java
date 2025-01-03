@@ -1,7 +1,7 @@
 /*
  * ResourceAction.java 8 juil. 2006
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,7 +48,8 @@ public class ResourceAction extends AbstractAction {
   public static final String VISIBLE = "Visible";
   public static final String POPUP   = "Popup";
   public static final String TOGGLE_BUTTON_MODEL = "ToggleButtonModel";
-  public static final String TOOL_BAR_ICON = "ToolBarIcon";
+  public static final String TOOL_BAR_ICON       = "ToolBarIcon";
+  public static final String UNLOCALIZED_NAME    = "UnlocalizedName";
 
   /**
    * Creates a disabled action with properties retrieved from a resource bundle
@@ -344,13 +345,12 @@ public class ResourceAction extends AbstractAction {
         if (value != null) {
           return value;
         }
-      } else if (key.equals(SMALL_ICON)) {
-        // Avoid icons in popus
-        return null;
-      } else if (OperatingSystem.isMacOSX()
-                 && key.equals(ACCELERATOR_KEY)) {
-        // Avoid accelerators in Mac OS X popups
-        return null;
+      } else if (OperatingSystem.isMacOSX()) {
+        if (key.equals(SMALL_ICON)
+            || key.equals(ACCELERATOR_KEY)) {
+          // Avoid accelerators and icons in Mac OS X popups
+          return null;
+        }
       }
       return super.getValue(key);
     }

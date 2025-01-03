@@ -1,7 +1,7 @@
 /*
  * PlanView.java 28 oct 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -123,11 +123,18 @@ public interface PlanView extends TransferableView, ExportableView {
                                           float x, float y);
 
   /**
-   * Set properties edited in tool tip.
+   * Sets properties edited in tool tip.
    */
   public abstract void setToolTipEditedProperties(PlanController.EditableProperty [] toolTipEditedProperties,
                                                   Object [] toolTipPropertyValues,
                                                   float x, float y);
+
+  /**
+   * Sets the value of a property edited in tool tip.
+   * @since 7.0
+   */
+  public abstract void setToolTipEditedPropertyValue(PlanController.EditableProperty toolTipEditedProperty,
+                                                     Object toolTipPropertyValue);
 
   /**
    * Deletes tool tip text from screen.

@@ -1,7 +1,7 @@
 /*
  * HomeFurniturePanelTest.java 16 mai 07
  *
- * Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>. All Rights Reserved.
+ * Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -112,6 +112,7 @@ public class HomeFurniturePanelTest extends ComponentTestFixture {
     assertTrue("Name text field doesn't have focus", nameTextField.hasFocus());
     // Check text field is selected when it gains focus
     assertEquals("Name text isn't selected", nameTextField.getText(), nameTextField.getSelectedText());
+    tester.actionKeyStroke(KeyEvent.VK_TAB);
     tester.actionKeyStroke(KeyEvent.VK_TAB);
     tester.actionKeyStroke(KeyEvent.VK_TAB);
     tester.waitForIdle();

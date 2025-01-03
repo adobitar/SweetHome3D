@@ -1,7 +1,7 @@
 /*
  * ColorButton.java 29 mai 07
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,6 +46,7 @@ import java.awt.event.WindowFocusListener;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.lang.ref.WeakReference;
 import java.text.FieldPosition;
 import java.text.Format;
 import java.text.ParseException;
@@ -957,7 +958,7 @@ public class ColorButton extends JButton {
         new ColorCode("3022", 0xD95030),
         new ColorCode("3024", 0xF80000),
         new ColorCode("3026", 0xFE0000),
-        new ColorCode("3027", 0xC51D34),
+        new ColorCode("3028", 0xCB3234),
         new ColorCode("3031", 0xB32428),
         new ColorCode("3032", 0x721422),
         new ColorCode("3033", 0xB44C43),
@@ -1032,6 +1033,8 @@ public class ColorButton extends JButton {
         new ColorCode("6034", 0x7FB5B5),
         new ColorCode("6035", 0x1C542D),
         new ColorCode("6036", 0x193737),
+        new ColorCode("6037", 0x008F39),
+        new ColorCode("6038", 0x00BB2D),
         new ColorCode("7000", 0x78858B),
         new ColorCode("7001", 0x8A9597),
         new ColorCode("7002", 0x7E7B52),
@@ -1169,13 +1172,35 @@ public class ColorButton extends JButton {
           ColorButton.class.getResource("resources/cursors/pipette32x32.png"),
           0, 1, "Pipette", Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
       preferences.addPropertyChangeListener(UserPreferences.Property.RECENT_COLORS,
-          new PropertyChangeListener() {
-            public void propertyChange(PropertyChangeEvent ev) {
-              setRecentColors(colorSelectionModel, preferences);
-            }
-          });
+          new RecentColorsChangeListener(this, colorSelectionModel));
       setRecentColors(colorSelectionModel, preferences);
       setOpaque(false);
+    }
+
+    /**
+     * Preferences property listener bound to this component with a weak reference to avoid
+     * strong link between preferences and this component.
+     */
+    private static class RecentColorsChangeListener implements PropertyChangeListener {
+      private WeakReference<RecentColorsPanel>   panel;
+      private WeakReference<ColorSelectionModel> colorSelectionModel;
+
+      public RecentColorsChangeListener(RecentColorsPanel panel, ColorSelectionModel colorSelectionModel) {
+        this.panel = new WeakReference<RecentColorsPanel>(panel);
+        this.colorSelectionModel = new WeakReference<ColorSelectionModel>(colorSelectionModel);
+      }
+
+      public void propertyChange(PropertyChangeEvent ev) {
+        // If panel was garbage collected, remove this listener from preferences
+        RecentColorsPanel panel = this.panel.get();
+        ColorSelectionModel colorSelectionModel = this.colorSelectionModel.get();
+        UserPreferences preferences = (UserPreferences)ev.getSource();
+        if (panel == null || colorSelectionModel == null) {
+          preferences.removePropertyChangeListener(UserPreferences.Property.RECENT_COLORS, this);
+        } else {
+          panel.setRecentColors(colorSelectionModel, preferences);
+        }
+      }
     }
 
     private void setRecentColors(final ColorSelectionModel colorSelectionModel,

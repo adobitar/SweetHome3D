@@ -1,7 +1,7 @@
 /*
  * MultipleLevelsPlanPanel.java 23 oct. 2011
  *
- * Sweet Home 3D, Copyright (c) 2011 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -680,11 +680,19 @@ public class MultipleLevelsPlanPanel extends JPanel implements PlanView, Printab
   }
 
   /**
-   * Set properties edited in tool tip.
+   * Sets properties edited in tool tip.
    */
   public void setToolTipEditedProperties(EditableProperty [] toolTipEditedProperties, Object [] toolTipPropertyValues,
                                          float x, float y) {
     ((PlanView)this.planComponent).setToolTipEditedProperties(toolTipEditedProperties, toolTipPropertyValues, x, y);
+  }
+
+  /**
+   * Sets the value of a property edited in tool tip.
+   */
+  public void setToolTipEditedPropertyValue(PlanController.EditableProperty toolTipEditedProperty,
+                                           Object toolTipPropertyValue) {
+    ((PlanView)this.planComponent).setToolTipEditedPropertyValue(toolTipEditedProperty, toolTipPropertyValue);
   }
 
   /**

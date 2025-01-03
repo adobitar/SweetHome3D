@@ -7,7 +7,6 @@ JOGL libraries are available at:
 http://jogamp.org/ 
 
 
-
 The JOGL source code is mostly licensed under the New BSD 2-clause license,
 however it contains other licensed material as well.
 

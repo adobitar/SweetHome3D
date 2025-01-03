@@ -1,7 +1,7 @@
 /*
  * FurniturePanel.java 19 juil. 2018
  *
- * Sweet Home 3D, Copyright (c) 2018 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -190,9 +190,10 @@ public class FurnitureTablePanel extends JPanel implements FurnitureView, Printa
     public void propertyChange(PropertyChangeEvent ev) {
       // If furniture table was garbage collected, remove this listener from preferences
       FurnitureTablePanel furnitureTablePanel = this.furnitureTablePanel.get();
+      Home home = this.home.get();
       UserPreferences preferences = (UserPreferences)ev.getSource();
       UserPreferences.Property property = UserPreferences.Property.valueOf(ev.getPropertyName());
-      if (furnitureTablePanel == null) {
+      if (furnitureTablePanel == null || home == null) {
         preferences.removePropertyChangeListener(UserPreferences.Property.LANGUAGE, this);
       } else {
         switch (property) {
@@ -204,7 +205,7 @@ public class FurnitureTablePanel extends JPanel implements FurnitureView, Printa
                 preferences.getLocalizedString(FurnitureTablePanel.class, "totalValueAddedTaxLabel.text"));
             furnitureTablePanel.totalPriceValueAddedTaxIncludedLabel.setText(
                 preferences.getLocalizedString(FurnitureTablePanel.class, "totalPriceValueAddedTaxIncludedLabel.text"));
-            furnitureTablePanel.updateTotals(this.home.get(), preferences);
+            furnitureTablePanel.updateTotals(home, preferences);
             // No break
           case VALUE_ADDED_TAX_ENABLED :
             furnitureTablePanel.updateTotalsVisibility(preferences);
@@ -421,6 +422,11 @@ public class FurnitureTablePanel extends JPanel implements FurnitureView, Printa
   public void setComponentPopupMenu(JPopupMenu popup) {
     this.furnitureTable.setComponentPopupMenu(popup);
     ((JViewport)this.furnitureTable.getParent()).setComponentPopupMenu(popup);
+  }
+
+  @Override
+  public JPopupMenu getComponentPopupMenu() {
+    return this.furnitureTable.getComponentPopupMenu();
   }
 
   /**

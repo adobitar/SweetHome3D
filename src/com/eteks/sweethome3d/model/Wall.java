@@ -1,7 +1,7 @@
 /*
  * Wall.java 3 juin 2006
  *
- * Sweet Home 3D, Copyright (c) 2006 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -808,7 +808,6 @@ public class Wall extends HomeObject implements Selectable, Elevatable {
     int rightSideStartPointIndex = wallPoints.length - 1;
     int leftSideEndPointIndex = wallPoints.length / 2 - 1;
     int rightSideEndPointIndex = wallPoints.length / 2;
-    float limit = 2 * this.thickness;
     // If wall is joined to a wall at its start,
     // compute the intersection between their outlines
     if (this.wallAtStart != null) {
@@ -830,6 +829,7 @@ public class Wall extends HomeObject implements Selectable, Elevatable {
       float [][] wallAtStartPointsCache = includeBaseboards
           ? this.wallAtStart.pointsIncludingBaseboardsCache
           : this.wallAtStart.pointsCache;
+      float limit = 2 * Math.max(this.thickness, this.wallAtStart.getThickness());
       if (wallAtStartJoinedAtEnd) {
         computeIntersection(wallPoints [leftSideStartPointIndex], wallPoints [leftSideStartPointIndex + 1],
             wallAtStartPoints [wallAtStartLeftSideEndPointIndex], wallAtStartPoints [wallAtStartLeftSideEndPointIndex - 1], limit);
@@ -891,6 +891,7 @@ public class Wall extends HomeObject implements Selectable, Elevatable {
       float [][] wallAtEndPointsCache = includeBaseboards
           ? this.wallAtEnd.pointsIncludingBaseboardsCache
           : this.wallAtEnd.pointsCache;
+      float limit = 2 * Math.max(this.thickness, this.wallAtEnd.getThickness());
       if (wallAtEndJoinedAtStart) {
         computeIntersection(wallPoints [leftSideEndPointIndex], wallPoints [leftSideEndPointIndex - 1],
             wallAtEndPoints [wallAtEndLeftSideStartPointIndex], wallAtEndPoints [wallAtEndLeftSideStartPointIndex + 1], limit);

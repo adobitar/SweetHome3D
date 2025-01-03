@@ -1,12 +1,12 @@
 <!-- installerLaunch4j-x86.xml
 
-     Sweet Home 3D, Copyright (c) 2007-2020 Emmanuel PUYBARET / eTeks <info@eteks.com>
+     Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
 
      SweetHome3D.exe creator 
      This script requires launch4j available at http://launch4j.sourceforge.net/     
      and a SweetHome3D.ico file containing Sweet Home 3D icon.
      It creates a SweetHome3D.exe in build directory running with
-     JRE stored in jre8 subdirectory 
+     JRE or OpenJDK stored in runtime subdirectory 
      + SweetHome3D.jar, Windows Java 3D DLLs and JARs for Java 3D and other required JARs 
        stored in a lib subdirectory -->
 <launch4jConfig>
@@ -33,32 +33,32 @@
     <cp>lib/batik-svgpathparser-1.7.jar</cp>
     <cp>lib/jeksparser-calculator.jar</cp>
     <cp>lib/iText-2.1.7.jar</cp>
-    <cp>lib/freehep-vectorgraphics-svg-2.1.1b.jar</cp>
+    <cp>lib/freehep-vectorgraphics-svg-2.1.1c.jar</cp>
     <cp>lib/sunflow-0.07.3i.jar</cp>
     <cp>lib/jmf.jar</cp>
     <cp>lib/j3dcore.jar</cp>
     <cp>lib/j3dutils.jar</cp>
     <cp>lib/vecmath.jar</cp>
-    <cp>jre8/lib/javaws.jar</cp>
+    <cp>lib/jnlp.jar</cp>
   </classPath>
   <jre>
-    <path>jre8</path>
-    <minVersion>1.8.0</minVersion>
+    <path>runtime</path>
+    <minVersion>1.5.0</minVersion>
     <maxVersion></maxVersion>
     <dontUsePrivateJres>false</dontUsePrivateJres>
     <initialHeapSize>0</initialHeapSize>
     <maxHeapSize>640</maxHeapSize>
-    <opt>-Djava.library.path=lib -Dcom.eteks.sweethome3d.applicationId=SweetHome3D#Installer</opt>
+    <opt>-Djava.library.path=lib;lib/yafaray -Dcom.eteks.sweethome3d.applicationId=SweetHome3D#Installer -Dcom.eteks.sweethome3d.checkUpdates=%HKEY_CLASSES_ROOT\Sweet Home 3D\Settings\checkUpdates%</opt>
   </jre>
   <versionInfo>
-    <fileVersion>6.4.2.0</fileVersion>
-    <txtFileVersion>6.4.2</txtFileVersion>
+    <fileVersion>7.5.0.0</fileVersion>
+    <txtFileVersion>7.5</txtFileVersion>
     <fileDescription>Sweet Home 3D</fileDescription>
-    <copyright>Copyright (c) 2007-2020 eTeks</copyright>
-    <productVersion>6.4.2.0</productVersion>
-    <txtProductVersion>6.4.2</txtProductVersion>
+    <copyright>Copyright (c) 2024 Space Mushrooms</copyright>
+    <productVersion>7.5.0.0</productVersion>
+    <txtProductVersion>7.5</txtProductVersion>
     <productName>Sweet Home 3D</productName>
-    <companyName>eTeks</companyName>
+    <companyName>Space Mushrooms</companyName>
     <internalName>SweetHome3D</internalName>
     <originalFilename>SweetHome3D.exe</originalFilename>
   </versionInfo>

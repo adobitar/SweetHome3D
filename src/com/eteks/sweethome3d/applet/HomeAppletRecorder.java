@@ -1,7 +1,7 @@
 /*
  * HomeAppletRecorder.java 13 Oct 2008
  *
- * Sweet Home 3D, Copyright (c) 2008 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -291,8 +291,8 @@ public class HomeAppletRecorder implements HomeRecorder {
   }
 
   /**
-   * Returns a home instance read from its file <code>name</code>.
-   * @throws RecorderException if a problem occurred while reading home,
+   * Deletes on server a home from its file <code>name</code>.
+   * @throws RecorderException if a problem occurred while deleting home,
    *   or if file <code>name</code> doesn't exist.
    */
   public void deleteHome(String name) throws RecorderException {

@@ -1,7 +1,7 @@
 /*
  * HomePrintableComponent.java 27 aout 07
  *
- * Sweet Home 3D, Copyright (c) 2007 Emmanuel PUYBARET / eTeks <info@eteks.com>
+ * Sweet Home 3D, Copyright (c) 2024 Space Mushrooms <info@sweethome3d.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ import java.security.AccessControlException;
 import java.text.MessageFormat;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.Set;
@@ -245,46 +246,26 @@ public class HomePrintableComponent extends JComponent implements Printable {
     }
 
     Rectangle clipBounds = g2D.getClipBounds();
+    FontMetrics fontMetrics = g2D.getFontMetrics(this.headerFooterFont);
     AffineTransform oldTransform = g2D.getTransform();
     final PlanView planView = this.controller.getPlanController().getView();
+    final List<Level> printedLevels = homePrint != null ? homePrint.getPrintedLevels() : null;
+    String levelName = "";
+    if (this.home.getSelectedLevel() != null) {
+      levelName = this.home.getSelectedLevel().getName();
+    }
+    String headerFormat = null;
+    String footerFormat = null;
     if (homePrint != null
         || fixedHeaderPageLabel != null
         || fixedFooterPageLabel != null) {
       if (homePrint != null) {
-        FontMetrics fontMetrics = g2D.getFontMetrics(this.headerFooterFont);
         float headerFooterHeight = fontMetrics.getAscent() + fontMetrics.getDescent() + HEADER_FOOTER_MARGIN;
 
-        // Retrieve variable values
-        int pageNumber = page + 1;
-        int pageCount = getPageCount();
-        String planScale = "?";
-        if (homePrint.getPlanScale() != null) {
-          planScale = "1/" + Math.round(1 / homePrint.getPlanScale());
-        } else {
-          float preferredScale = planView.getPrintPreferredScale(LengthUnit.inchToCentimeter((float)pageFormat.getImageableWidth() / 72),
-              LengthUnit.inchToCentimeter((float)pageFormat.getImageableHeight() / 72));
-          planScale = "1/" + Math.round(1 / preferredScale);
-        }
-        if (page == 0) {
-          this.printDate = new Date();
-        }
-        String homeName = this.home.getName();
-        if (homeName == null) {
-          homeName = "";
-        }
-        String levelName = "";
-        if (this.home.getSelectedLevel() != null) {
-          levelName = this.home.getSelectedLevel().getName();
-        }
-        String homePresentationName = this.controller.getContentManager().getPresentationName(
-             homeName, ContentManager.ContentType.SWEET_HOME_3D);
-        Object [] variableValues = new Object [] {
-            pageNumber, pageCount, planScale, this.printDate, homePresentationName, homeName, levelName};
-
         // Create header text
-        String headerFormat = homePrint.getHeaderFormat();
+        headerFormat = homePrint.getHeaderFormat();
         if (headerFormat != null) {
-          header = Variable.getMessageFormat(headerFormat).format(variableValues).trim();
+          header = formatHeaderFooter(headerFormat, pageFormat, homePrint, planView, page, levelName);
           if (header.length() > 0) {
             xHeader = ((float)pageFormat.getWidth() - fontMetrics.stringWidth(header)) / 2;
             yHeader = imageableY + fontMetrics.getAscent();
@@ -296,9 +277,9 @@ public class HomePrintableComponent extends JComponent implements Printable {
         }
 
         // Create footer text
-        String footerFormat = homePrint.getFooterFormat();
+        footerFormat = homePrint.getFooterFormat();
         if (footerFormat != null) {
-          footer = Variable.getMessageFormat(footerFormat).format(variableValues).trim();
+          footer = formatHeaderFooter(footerFormat, pageFormat, homePrint, planView, page, levelName);
           if (footer.length() > 0) {
             xFooter = ((float)pageFormat.getWidth() - fontMetrics.stringWidth(footer)) / 2;
             yFooter = imageableY + imageableHeight - fontMetrics.getDescent();
@@ -345,14 +326,14 @@ public class HomePrintableComponent extends JComponent implements Printable {
           && (homePrint == null
               || homePrint.isPlanPrinted()
               || homePrint.isView3DPrinted())) {
-        final Level selectedLevel = home.getSelectedLevel();
+        final Level selectedLevel = this.home.getSelectedLevel();
         filteredFurnitureView = (FurnitureView)furnitureView;
         furnitureFilter = filteredFurnitureView.getFurnitureFilter();
         filteredFurnitureView.setFurnitureFilter(new FurnitureView.FurnitureFilter() {
             public boolean include(Home home, HomePieceOfFurniture piece) {
               // Print only furniture at selected level when the plan or the 3D view is printed
               return (furnitureFilter == null || furnitureFilter.include(home, piece))
-                  && piece.isAtLevel(selectedLevel)
+                  && (printedLevels == null ? piece.isAtLevel(selectedLevel) : printedLevels.contains(piece.getLevel()))
                   && (piece.getLevel() == null || piece.getLevel().isViewable());
             }
           });
@@ -365,10 +346,30 @@ public class HomePrintableComponent extends JComponent implements Printable {
         // Restore previous filter
         filteredFurnitureView.setFurnitureFilter(furnitureFilter);
       }
-      if (pageExists == PAGE_EXISTS
-          && !this.printablePages.contains(page)) {
-        this.printablePages.add(page);
-        this.furniturePageCount++;
+      if (pageExists == PAGE_EXISTS) {
+        if (!this.printablePages.contains(page)) {
+          this.printablePages.add(page);
+          this.furniturePageCount++;
+        }
+
+        if (printedLevels != null) {
+          // Adjust header and footer texts
+          levelName = printedLevels.size() == 1
+              ? printedLevels.get(0).getName()
+              : "";
+          if (headerFormat != null) {
+            header = formatHeaderFooter(headerFormat, pageFormat, homePrint, planView, page, levelName);
+            if (header.length() > 0) {
+              xHeader = ((float)pageFormat.getWidth() - fontMetrics.stringWidth(header)) / 2;
+            }
+          }
+          if (footerFormat != null) {
+            footer = formatHeaderFooter(footerFormat, pageFormat, homePrint, planView, page, levelName);
+            if (footer.length() > 0) {
+              xFooter = ((float)pageFormat.getWidth() - fontMetrics.stringWidth(footer)) / 2;
+            }
+          }
+        }
       }
     }
     if (pageExists == NO_SUCH_PAGE
@@ -376,10 +377,32 @@ public class HomePrintableComponent extends JComponent implements Printable {
         && (homePrint == null || homePrint.isPlanPrinted())) {
       // Try to print next plan view page
       pageExists = ((Printable)planView).print(g2D, pageFormat, page - this.furniturePageCount);
-      if (pageExists == PAGE_EXISTS
-          && !this.printablePages.contains(page)) {
-        this.printablePages.add(page);
-        this.planPageCount++;
+      if (pageExists == PAGE_EXISTS) {
+        if (!this.printablePages.contains(page)) {
+          this.printablePages.add(page);
+          this.planPageCount++;
+        }
+
+        if (printedLevels != null) {
+          // Adjust header and footer texts
+          levelName = this.home.getPrint().getPlanScale() == null
+              ? printedLevels.get(page - this.furniturePageCount).getName()
+              : printedLevels.size() == 1
+                  ? printedLevels.get(0).getName()
+                  : "";
+          if (headerFormat != null) {
+            header = formatHeaderFooter(headerFormat, pageFormat, homePrint, planView, page, levelName);
+            if (header.length() > 0) {
+              xHeader = ((float)pageFormat.getWidth() - fontMetrics.stringWidth(header)) / 2;
+            }
+          }
+          if (footerFormat != null) {
+            footer = formatHeaderFooter(footerFormat, pageFormat, homePrint, planView, page, levelName);
+            if (footer.length() > 0) {
+              xFooter = ((float)pageFormat.getWidth() - fontMetrics.stringWidth(footer)) / 2;
+            }
+          }
+        }
       }
     }
     View view3D = this.controller.getHomeController3D().getView();
@@ -451,6 +474,37 @@ public class HomePrintableComponent extends JComponent implements Printable {
     } catch (PrinterException ex) {
       throw new RuntimeException(ex);
     }
+  }
+
+  /**
+   * Returns the header or footer text from the given format.
+   */
+  private String formatHeaderFooter(String headerFooterFormat,
+                                    PageFormat pageFormat, HomePrint homePrint, PlanView planView,
+                                    int page, String levelName) {
+    // Retrieve variable values
+    int pageNumber = page + 1;
+    int pageCount = getPageCount();
+    String planScale = "?";
+    if (homePrint.getPlanScale() != null) {
+      planScale = "1/" + Math.round(1 / homePrint.getPlanScale());
+    } else {
+      float preferredScale = planView.getPrintPreferredScale(LengthUnit.inchToCentimeter((float)pageFormat.getImageableWidth() / 72),
+          LengthUnit.inchToCentimeter((float)pageFormat.getImageableHeight() / 72));
+      planScale = "1/" + Math.round(1 / preferredScale);
+    }
+    if (page == 0) {
+      this.printDate = new Date();
+    }
+    String homeName = this.home.getName();
+    if (homeName == null) {
+      homeName = "";
+    }
+    String homePresentationName = this.controller.getContentManager().getPresentationName(
+         homeName, ContentManager.ContentType.SWEET_HOME_3D);
+    Object [] variableValues = new Object [] {
+        pageNumber, pageCount, planScale, this.printDate, homePresentationName, homeName, levelName};
+    return Variable.getMessageFormat(headerFooterFormat).format(variableValues).trim();
   }
 
   /**
